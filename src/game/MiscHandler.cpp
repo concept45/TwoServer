@@ -42,6 +42,7 @@
 #include "Pet.h"
 #include "SocialMgr.h"
 #include "DBCEnums.h"
+#include "HookMgr.h"
 
 void WorldSession::HandleRepopRequestOpcode(WorldPacket& recv_data)
 {
@@ -62,6 +63,9 @@ void WorldSession::HandleRepopRequestOpcode(WorldPacket& recv_data)
         DEBUG_LOG("HandleRepopRequestOpcode: got request after player %s(%d) was killed and before he was updated", GetPlayer()->GetName(), GetPlayer()->GetGUIDLow());
         GetPlayer()->KillPlayer();
     }
+
+    // used by eluna
+    sHookMgr->OnRepop(GetPlayer());
 
     // this is spirit release confirm?
     GetPlayer()->RemovePet(PET_SAVE_REAGENTS);
@@ -791,6 +795,9 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
                     return;
             }
         }
+
+        // used by eluna
+        sHookMgr->OnResurrect(player);
 
         // now we can resurrect player, and then check teleport requirements
         player->ResurrectPlayer(0.5f);

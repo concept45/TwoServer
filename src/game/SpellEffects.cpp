@@ -57,6 +57,7 @@
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
+#include "HookMgr.h"
 
 pEffect SpellEffects[TOTAL_SPELL_EFFECTS] =
 {
@@ -5287,6 +5288,11 @@ void Spell::EffectSummonType(SpellEffectIndex eff_idx)
                 ((Creature*)m_caster)->AI()->JustSummoned(itr->creature);
             if (m_originalCaster && m_originalCaster != m_caster && m_originalCaster->GetTypeId() == TYPEID_UNIT && ((Creature*)m_originalCaster)->AI())
                 ((Creature*)m_originalCaster)->AI()->JustSummoned(itr->creature);
+            if (Unit* summoner = m_caster->ToUnit())
+                sHookMgr->OnSummoned(itr->creature, summoner);
+            else if (m_originalCaster)
+                if (Unit* summoner = m_originalCaster->ToUnit())
+                    sHookMgr->OnSummoned(itr->creature, summoner);
         }
     }
 }
@@ -5319,6 +5325,8 @@ bool Spell::DoSummonWild(CreatureSummonPositions& list, SummonPropertiesEntry co
             // Notify original caster if not done already
             if (m_originalCaster && m_originalCaster != m_caster && m_originalCaster->GetTypeId() == TYPEID_UNIT && ((Creature*)m_originalCaster)->AI())
                 ((Creature*)m_originalCaster)->AI()->JustSummoned(summon);
+            if (Unit* summoner = m_originalCaster->ToUnit())
+                sHookMgr->OnSummoned(summon, summoner);
         }
         else
             return false;
@@ -5594,6 +5602,8 @@ bool Spell::DoSummonPossessed(CreatureSummonPositions& list, SummonPropertiesEnt
     // Notify Summoner
     if (m_originalCaster && m_originalCaster != m_caster && m_originalCaster->GetTypeId() == TYPEID_UNIT && ((Creature*)m_originalCaster)->AI())
         ((Creature*)m_originalCaster)->AI()->JustSummoned(spawnCreature);
+    if (Unit* summoner = m_originalCaster->ToUnit())
+        sHookMgr->OnSummoned(spawnCreature, summoner);
 
     return true;
 }
@@ -5688,6 +5698,11 @@ bool Spell::DoSummonPet(SpellEffectIndex eff_idx)
         ((Creature*)m_caster)->AI()->JustSummoned((Creature*)spawnCreature);
     if (m_originalCaster && m_originalCaster != m_caster && m_originalCaster->GetTypeId() == TYPEID_UNIT && ((Creature*)m_originalCaster)->AI())
         ((Creature*)m_originalCaster)->AI()->JustSummoned((Creature*)spawnCreature);
+    if (Unit* summoner = m_caster->ToUnit())
+        sHookMgr->OnSummoned(spawnCreature, summoner);
+    if (m_originalCaster)
+        if (Unit* summoner = m_originalCaster->ToUnit())
+            sHookMgr->OnSummoned(spawnCreature, summoner);
 
     return false;
 }
@@ -5737,6 +5752,9 @@ bool Spell::DoSummonVehicle(CreatureSummonPositions& list, SummonPropertiesEntry
     // Notify Summoner
     if (m_originalCaster && m_originalCaster != m_caster && m_originalCaster->GetTypeId() == TYPEID_UNIT && ((Creature*)m_originalCaster)->AI())
         ((Creature*)m_originalCaster)->AI()->JustSummoned(spawnCreature);
+    if (m_originalCaster)
+        if (Unit* summoner = m_originalCaster->ToUnit())
+            sHookMgr->OnSummoned(spawnCreature, summoner);
 
     return true;
 }
@@ -9476,6 +9494,9 @@ void Spell::EffectDuel(SpellEffectIndex eff_idx)
 
     caster->SetGuidValue(PLAYER_DUEL_ARBITER, pGameObj->GetObjectGuid());
     target->SetGuidValue(PLAYER_DUEL_ARBITER, pGameObj->GetObjectGuid());
+
+    // used by eluna
+    sHookMgr->OnDuelRequest(target, caster);
 }
 
 void Spell::EffectStuck(SpellEffectIndex /*eff_idx*/)
