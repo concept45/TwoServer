@@ -26,7 +26,7 @@
 
 class WorldSession;
 
-#define GOSSIP_MAX_MENU_ITEMS 64                            // client supported items unknown, but provided number must be enough
+#define GOSSIP_MAX_MENU_ITEMS               0x20
 #define DEFAULT_GOSSIP_MESSAGE              0xffffff
 
 enum Gossip_Option
