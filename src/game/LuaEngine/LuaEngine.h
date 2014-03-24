@@ -14,7 +14,6 @@ extern "C"
 #include "lauxlib.h"
 };
 
-#include "Includes.h"
 #include "HookMgr.h"
 
 // Required
@@ -247,7 +246,7 @@ public:
         {
             if (error)
             {
-                std::string errmsg(ElunaTemplate<Unit>::tname);
+                std::string errmsg(ElunaTemplate<T>::tname);
                 errmsg += " expected";
                 luaL_argerror(L, narg, errmsg.c_str());
             }
