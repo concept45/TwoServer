@@ -22,6 +22,9 @@
 #include "Platform/Define.h"
 #include <cassert>
 
+#define MANGOS
+#define WOTLK
+
 enum Gender
 {
     GENDER_MALE                        = 0,
