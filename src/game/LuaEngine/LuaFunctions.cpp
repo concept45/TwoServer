@@ -115,6 +115,7 @@ ElunaRegister<Object> ObjectMethods[] =
     { "GetFloatValue", &LuaObject::GetFloatValue },           // :GetFloatValue(index) - returns a float value from object fields
     { "GetByteValue", &LuaObject::GetByteValue },             // :GetByteValue(index, offset) - returns a byte value from object fields
     { "GetUInt16Value", &LuaObject::GetUInt16Value },         // :GetUInt16Value(index, offset) - returns a uint16 value from object fields
+    { "GetUInt64Value", &LuaObject::GetUInt64Value },         // :GetUInt64Value(index) - returns a uint64 value from object fields
     { "GetScale", &LuaObject::GetScale },                     // :GetScale()
     { "GetTypeId", &LuaObject::GetTypeId },                   // :GetTypeId() - Returns the object's typeId
 
@@ -126,6 +127,7 @@ ElunaRegister<Object> ObjectMethods[] =
     { "SetByteValue", &LuaObject::SetByteValue },             // :SetByteValue(index, offset, value) - Sets a byte value for the object
     { "SetUInt16Value", &LuaObject::SetUInt16Value },         // :SetUInt16Value(index, offset, value) - Sets an uint16 value for the object
     { "SetInt16Value", &LuaObject::SetInt16Value },           // :SetInt16Value(index, offset, value) - Sets an int16 value for the object
+    { "SetUInt64Value", &LuaObject::SetUInt64Value },         // :SetUInt64Value(index, value) - Sets an uint64 value for the object
     { "SetScale", &LuaObject::SetScale },                     // :SetScale(scale)
     { "SetFlag", &LuaObject::SetFlag },                       // :SetFlag(index, flag)
 
@@ -592,6 +594,7 @@ ElunaRegister<Player> PlayerMethods[] =
     { "SendAreaTriggerMessage", &LuaPlayer::SendAreaTriggerMessage },                     // :SendAreaTriggerMessage(message) - Sends a yellow message in the middle of your screen
     { "SendNotification", &LuaPlayer::SendNotification },                                 // :SendNotification(message) - Sends a red message in the middle of your screen
     { "SendPacket", &LuaPlayer::SendPacket },                                             // :SendPacket(packet, selfOnly) - Sends a packet to player or everyone around also if selfOnly is false
+    { "SendAddonMessage", &LuaPlayer::SendAddonMessage },                                 // :SendAddonMessage(prefix, message, channel, receiver) - Sends an addon message to the player. 
     { "SendVendorWindow", &LuaPlayer::SendVendorWindow },                                 // :SendVendorWindow(unit) - Sends the unit's vendor window to the player
     { "ModifyMoney", &LuaPlayer::ModifyMoney },                                           // :ModifyMoney(amount[, sendError]) - Modifies (does not set) money (copper count) of the player. Amount can be negative to remove copper
     { "LearnSpell", &LuaPlayer::LearnSpell },                                             // :LearnSpell(id) - learns the given spell
@@ -974,6 +977,7 @@ ElunaRegister<Group> GroupMethods[] =
     // Setters
     { "SetLeader", &LuaGroup::ChangeLeader },                     // :SetLeader(Player) - Sets the player as the new leader
     { "SetMembersGroup", &LuaGroup::ChangeMembersGroup },         // :ChangeMembersGroup(player, subGroup) - Changes the member's subgroup
+    { "SetTargetIcon", &LuaGroup::SetTargetIcon },                // :SetTargetIcon(icon, targetguid[, setterguid]) - Sets target's icon for group. target 0 to clear.
 
     // Boolean
     { "IsLeader", &LuaGroup::IsLeader },                          // :IsLeader(GUID)
