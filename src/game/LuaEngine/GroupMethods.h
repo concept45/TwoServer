@@ -222,6 +222,23 @@ namespace LuaGroup
         return 0;
     }
 
+    int SetTargetIcon(lua_State* L, Group* group)
+    {
+        uint8 icon = sEluna->CHECKVAL<uint8>(L, 2);
+        uint64 target = sEluna->CHECKVAL<uint64>(L, 3);
+        uint64 setter = sEluna->CHECKVAL<uint64>(L, 4, 0);
+
+        if (icon >= TARGETICONCOUNT)
+            return luaL_argerror(L, 2, "valid target icon expected");
+
+#if (defined(TBC) || defined(TBC))
+        group->SetTargetIcon(icon, ObjectGuid(target));
+#else
+        group->SetTargetIcon(icon, ObjectGuid(setter), ObjectGuid(target));
+#endif
+        return 0;
+    }
+
     /*int ConvertToLFG(lua_State* L, Group* group) // TODO: Implementation
     {
     group->ConvertToLFG();

@@ -2028,17 +2028,17 @@ namespace LuaPlayer
 
     int SendAreaTriggerMessage(lua_State* L, Player* player)
     {
-        const char* msg = sEluna->CHECKVAL<const char*>(L, 2);
-        if (std::string(msg).length() > 0)
-            player->GetSession()->SendAreaTriggerMessage(msg);
+        std::string msg = sEluna->CHECKVAL<std::string>(L, 2);
+        if (msg.length() > 0)
+            player->GetSession()->SendAreaTriggerMessage(msg.c_str());
         return 0;
     }
 
     int SendNotification(lua_State* L, Player* player)
     {
-        const char* msg = sEluna->CHECKVAL<const char*>(L, 2);
-        if (std::string(msg).length() > 0)
-            player->GetSession()->SendNotification(msg);
+        std::string msg = sEluna->CHECKVAL<std::string>(L, 2);
+        if (msg.length() > 0)
+            player->GetSession()->SendNotification(msg.c_str());
         return 0;
     }
 
@@ -2057,6 +2057,30 @@ namespace LuaPlayer
             player->GetSession()->SendPacket(data);
         else
             player->SendMessageToSet(data, true);
+        return 0;
+    }
+
+    int SendAddonMessage(lua_State* L, Player* player)
+    {
+        std::string prefix = sEluna->CHECKVAL<std::string>(L, 2);
+        std::string message = sEluna->CHECKVAL<std::string>(L, 3);
+        uint8 channel = sEluna->CHECKVAL<uint8>(L, 4);
+        Player* receiver = sEluna->CHECKOBJ<Player>(L, 5);
+
+        std::string fullmsg = prefix + "\t" + message;
+
+        WorldPacket data(SMSG_MESSAGECHAT, 100);
+        data << uint8(channel);
+        data << int32(LANG_ADDON);
+        data << uint64(player->GET_GUID());
+#ifndef CLASSIC
+        data << uint32(0);
+        data << uint64(receiver->GET_GUID());
+#endif
+        data << uint32(fullmsg.length() + 1);
+        data << fullmsg;
+        data << uint8(0);
+        receiver->GetSession()->SendPacket(&data);
         return 0;
     }
 
