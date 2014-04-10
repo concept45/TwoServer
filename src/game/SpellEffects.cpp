@@ -5305,7 +5305,7 @@ void Spell::EffectSummonType(SpellEffectIndex eff_idx)
     }
 }
 
-bool Spell::DoSummonWild(CreatureSummonPositions& list, SummonPropertiesEntry const* prop, SpellEffectIndex effIdx, uint32 level)
+bool Spell::DoSummonWild(CreatureSummonPositions& list, SummonPropertiesEntry const* prop, SpellEffectIndex effIdx, uint32 /*level*/)
 {
     MANGOS_ASSERT(!list.empty() && prop);
 
@@ -10642,7 +10642,7 @@ void Spell::EffectStealBeneficialBuff(SpellEffectIndex eff_idx)
     }
 }
 
-void Spell::EffectWMODamage(SpellEffectIndex effIdx)
+void Spell::EffectWMODamage(SpellEffectIndex /*effIdx*/)
 {
     DEBUG_LOG("Effect: WMODamage");
 
@@ -10663,7 +10663,7 @@ void Spell::EffectWMODamage(SpellEffectIndex effIdx)
     gameObjTarget->DealGameObjectDamage(uint32(damage), m_spellInfo->Id, caster);
 }
 
-void Spell::EffectWMORepair(SpellEffectIndex effIdx)
+void Spell::EffectWMORepair(SpellEffectIndex /*effIdx*/)
 {
     DEBUG_LOG("Effect: WMORepair");
 
@@ -10905,7 +10905,7 @@ void Spell::EffectRestoreItemCharges(SpellEffectIndex eff_idx)
     item->RestoreCharges();
 }
 
-void Spell::EffectRedirectThreat(SpellEffectIndex eff_idx)
+void Spell::EffectRedirectThreat(SpellEffectIndex /*eff_idx*/)
 {
     if (!unitTarget)
         return;
