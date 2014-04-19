@@ -215,29 +215,30 @@ bool HookMgr::OnPacketReceive(WorldSession* session, WorldPacket& packet)
     return result;
 }
 // AddOns
-void HookMgr::OnAddonMessage(Player* pPlayer, std::string& msg, uint32 type, std::string& to)
+bool HookMgr::OnAddonMessage(Player* sender, uint32 type, std::string& msg, Player* receiver, Guild* guild, Group* group, Channel* channel)
 {
     if (!sEluna->ServerEventBindings.HasEvents(ADDON_EVENT_ON_MESSAGE))
-		return;
+		return false;
 	ELUNA_GUARD();
     sEluna->ServerEventBindings.BeginCall(ADDON_EVENT_ON_MESSAGE);
-	sEluna->Push(sEluna->L, pPlayer);
-
-    const char* c_msg = msg.c_str();
-    char* arg = strtok((char*)c_msg, "\t");
-    while (arg)
-    {
-        sEluna->Push(sEluna->L, arg);
-        arg = strtok(NULL, "\t");
-    }
-
+    sEluna->Push(sEluna->L, sender);
     sEluna->Push(sEluna->L, type);
-    if (to.empty())
-        sEluna->Push(sEluna->L);
+    const char* c_msg = msg.c_str();
+    sEluna->Push(sEluna->L, strtok((char*)c_msg, "\t")); // prefix
+    sEluna->Push(sEluna->L, strtok(NULL, "")); // msg
+    if (receiver)
+        sEluna->Push(sEluna->L, receiver);
+    else if (guild)
+        sEluna->Push(sEluna->L, guild);
+    else if (group)
+        sEluna->Push(sEluna->L, group);
+    else if (channel)
+        sEluna->Push(sEluna->L, channel->GetChannelId());
     else
-        sEluna->Push(sEluna->L, to);
+        sEluna->Push(sEluna->L);
 	sEluna->ServerEventBindings.ExecuteCall();
 	sEluna->ServerEventBindings.EndCall();
+    return true;
 }
 
 #ifndef MANGOS
@@ -978,6 +979,8 @@ void HookMgr::OnMapChanged(Player* player)
 
 bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg)
 {
+    if (lang == LANG_ADDON && OnAddonMessage(pPlayer, type, msg, NULL, NULL, NULL, NULL))
+        return true;
     bool result = true;
     if (sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_CHAT))
     {
@@ -1007,6 +1010,8 @@ bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg
 
 bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg, Group* pGroup)
 {
+    if (lang == LANG_ADDON && OnAddonMessage(pPlayer, type, msg, NULL, NULL, pGroup, NULL))
+        return true;
     bool result = true;
     if (sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_GROUP_CHAT))
     {
@@ -1037,6 +1042,8 @@ bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg
 
 bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg, Guild* pGuild)
 {
+    if (lang == LANG_ADDON && OnAddonMessage(pPlayer, type, msg, NULL, pGuild, NULL, NULL))
+        return true;
     bool result = true;
     if (sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_GUILD_CHAT))
     {
@@ -1067,6 +1074,8 @@ bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg
 
 bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg, Channel* pChannel)
 {
+    if (lang == LANG_ADDON && OnAddonMessage(pPlayer, type, msg, NULL, NULL, NULL, pChannel))
+        return true;
     bool result = true;
     if (sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_CHANNEL_CHAT))
     {
@@ -1097,6 +1106,8 @@ bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg
 
 bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg, Player* pReceiver)
 {
+    if (lang == LANG_ADDON && OnAddonMessage(pPlayer, type, msg, pReceiver, NULL, NULL, NULL))
+        return true;
     bool result = true;
     if (sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_WHISPER))
     {
