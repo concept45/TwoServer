@@ -4,14 +4,12 @@
 * Please see the included DOCS/LICENSE.md for more information
 */
 
+#include <ace/Dirent.h>
+#include <ace/OS_NS_sys_stat.h>
 #include "LuaEngine.h"
 
 #ifdef MANGOS
 INSTANTIATE_SINGLETON_1(Eluna);
-#endif
-
-#if PLATFORM == PLATFORM_UNIX
-#include <dirent.h>
 #endif
 
 extern void RegisterFunctions(lua_State* L);
@@ -23,7 +21,7 @@ bool StartEluna()
 #ifndef ELUNA
 #ifndef MANGOS
     {
-        TC_LOG_ERROR("eluna", "[Eluna]: LuaEngine is Disabled. (If you want to use it please enable in cmake)");
+        ELUNA_LOG_ERROR("[Eluna]: LuaEngine is Disabled. (If you want to use it please enable in cmake)");
         return false;
     }
 #endif
@@ -35,7 +33,7 @@ bool StartEluna()
     {
         restart = true;
         sHookMgr->OnEngineRestart();
-        TC_LOG_INFO("eluna", "[Eluna]: Restarting Lua Engine");
+        ELUNA_LOG_INFO("[Eluna]: Stopping Lua Engine");
 
         // Unregisters and stops all timed events
         sEluna->m_EventMgr.RemoveEvents();
@@ -65,46 +63,21 @@ bool StartEluna()
     // Check config file for eluna is enabled or disabled
     if (!sWorld->getConfig(CONFIG_BOOL_ELUNA_ENABLED))
     {
-        TC_LOG_ERROR("eluna", "[Eluna]: LuaEngine is Disabled. (If you want to use it please set config in 'mangosd.conf')");
+        ELUNA_LOG_ERROR("[Eluna]: LuaEngine is Disabled. (If you want to use it please set config in 'mangosd.conf')");
         return false;
     }
 #endif
 
-    sEluna->L = luaL_newstate();
-    TC_LOG_INFO("eluna", "[Eluna]: Lua Engine loaded.");
+    ELUNA_LOG_INFO("[Eluna]: Starting Lua Engine");
 
-    LoadedScripts loadedScripts;
-    sEluna->LoadDirectory("lua_scripts", &loadedScripts);
+    sEluna->L = luaL_newstate();
     luaL_openlibs(sEluna->L);
     RegisterFunctions(sEluna->L);
 
-    // Randomize math.random()
-    // The macro fails on TC for unknown reason
-    // luaL_dostring(sEluna->L, "math.randomseed( tonumber(tostring(os.time()):reverse():sub(1,6)) )");
-    if (!luaL_loadstring(sEluna->L, "math.randomseed( tonumber(tostring(os.time()):reverse():sub(1,6)) )"))
-        lua_pcall(sEluna->L, 0, LUA_MULTRET, 0);
-
-    uint32 count = 0;
-    char filename[200];
-    for (std::set<std::string>::const_iterator itr = loadedScripts.begin(); itr != loadedScripts.end(); ++itr)
-    {
-        strcpy(filename, itr->c_str());
-        if (luaL_loadfile(sEluna->L, filename) != 0)
-        {
-            TC_LOG_ERROR("eluna", "[Eluna]: Error loading file `%s`.", itr->c_str());
-            sEluna->report(sEluna->L);
-        }
-        else
-        {
-            int err = lua_pcall(sEluna->L, 0, 0, 0);
-            if (err != 0 && err == LUA_ERRRUN)
-            {
-                TC_LOG_ERROR("eluna", "[Eluna]: Error loading file `%s`.", itr->c_str());
-                sEluna->report(sEluna->L);
-            }
-        }
-        ++count;
-    }
+    ScriptPaths scripts;
+    sEluna->GetScripts("lua_scripts", scripts);
+    sEluna->GetScripts("lua_scripts\\extensions", scripts);
+    sEluna->RunScripts(scripts);
 
     /*
     if (restart)
@@ -134,104 +107,68 @@ bool StartEluna()
     }
     }
     */
-
-    TC_LOG_INFO("eluna", "[Eluna]: Loaded %u Lua scripts..", count);
     return true;
 }
 
-// Loads lua scripts from given directory
-void Eluna::LoadDirectory(char* Dirname, LoadedScripts* lscr)
+// Finds lua script files from given path (including subdirectories) and pushes them to scripts
+void Eluna::GetScripts(std::string path, ScriptPaths& scripts)
 {
-#ifdef WIN32
-    HANDLE hFile;
-    WIN32_FIND_DATA FindData;
-    memset(&FindData, 0, sizeof(FindData));
-    char SearchName[MAX_PATH];
-
-    strcpy(SearchName, Dirname);
-    strcat(SearchName, "\\*.*");
-
-    hFile = FindFirstFile(SearchName, &FindData);
-    if (hFile == INVALID_HANDLE_VALUE)
+    ACE_Dirent dir;
+    if (dir.open(path.c_str()) == -1)
     {
-        TC_LOG_ERROR("eluna", "[Eluna]: Error No `lua_scripts` directory found! Creating a 'lua_scripts' directory.");
-        CreateDirectory("lua_scripts", NULL);
+        ELUNA_LOG_ERROR("[Eluna]: Error No `%s` directory found, creating it", path.c_str());
+        ACE_OS::mkdir(path.c_str());
         return;
     }
 
-    FindNextFile(hFile, &FindData);
-    while (FindNextFile(hFile, &FindData))
+    ACE_DIRENT *directory = 0;
+    while (directory = dir.read())
     {
-        if (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        // Skip the ".." and "." files.
+        if (ACE::isdotdir(directory->d_name))
+            continue;
+
+        std::string fullpath = path + "\\" + directory->d_name;
+
+        ACE_stat stat_buf;
+        if (ACE_OS::lstat(fullpath.c_str(), &stat_buf) == -1)
+            continue;
+
+        // load subfolder
+        if ((stat_buf.st_mode & S_IFMT) == (S_IFDIR))
         {
-            strcpy(SearchName, Dirname);
-            strcat(SearchName, "\\");
-            strcat(SearchName, FindData.cFileName);
-            LoadDirectory(SearchName, lscr);
+            GetScripts(fullpath, scripts);
+            continue;
         }
-        else
-        {
-            std::string fname = Dirname;
-            fname += "\\";
-            fname += FindData.cFileName;
-            size_t len = strlen(fname.c_str());
-            int i = 0;
-            char ext[MAX_PATH];
-            while (len > 0)
-            {
-                ext[i++] = fname[--len];
-                if (fname[len] == '.')
-                    break;
-            }
-            ext[i++] = '\0';
-            if (!_stricmp(ext, "aul."))
-            {
-                TC_LOG_DEBUG("eluna", "[Eluna]: Load File: %s", fname.c_str());
-                lscr->insert(fname);
-            }
-        }
+
+        // was file, check extension
+        std::string ext = fullpath.substr(fullpath.length() - 4, 4);
+        if (ext != ".lua" && ext != ".dll")
+            continue;
+
+        // was correct, add path to scripts to load
+        scripts.erase(fullpath);
+        scripts.insert(fullpath);
     }
-    FindClose(hFile);
-#else
-    char* dir = strrchr(Dirname, '/');
-    if (strcmp(Dirname, "..") == 0 || strcmp(Dirname, ".") == 0)
-        return;
+}
 
-    if (dir && (strcmp(dir, "/..") == 0 || strcmp(dir, "/.") == 0 || strcmp(dir, "/.svn") == 0))
-        return;
-
-    struct dirent** list;
-    int fileCount = scandir(Dirname, &list, 0, 0);
-
-    if (fileCount <= 0 || !list)
-        return;
-
-    struct stat attributes;
-    bool error;
-    while (fileCount--)
+void Eluna::RunScripts(ScriptPaths& scripts)
+{
+    uint32 count = 0;
+    // load last first to load extensions first
+    for (ScriptPaths::const_reverse_iterator it = scripts.rbegin(); it != scripts.rend(); ++it)
     {
-        char _path[200];
-        sprintf(_path, "%s/%s", Dirname, list[fileCount]->d_name);
-        if (stat(_path, &attributes) == -1)
+        if (!luaL_loadfile(L, it->c_str()) && !lua_pcall(L, 0, 0, 0))
         {
-            error = true;
-            TC_LOG_ERROR("eluna", "[Eluna]: Error opening `%s`", _path);
+            // successfully loaded and ran file
+            ELUNA_LOG_DEBUG("[Eluna]: Successfully loaded `%s`.", it->c_str());
+            ++count;
+            continue;
         }
-        else
-            error = false;
-
-        if (!error && S_ISDIR(attributes.st_mode))
-            LoadDirectory((char*)_path, lscr);
-        else
-        {
-            char* ext = strrchr(list[fileCount]->d_name, '.');
-            if (ext && !strcmp(ext, ".lua"))
-                lscr->insert(_path);
-        }
-        free(list[fileCount]);
+        ELUNA_LOG_ERROR("[Eluna]: Error loading file `%s`.", it->c_str());
+        report(L);
     }
-    free(list);
-#endif
+    ELUNA_LOG_INFO("[Eluna]: Loaded %u Lua scripts..", count);
 }
 
 void Eluna::report(lua_State* L)
@@ -240,7 +177,7 @@ void Eluna::report(lua_State* L)
     while (msg)
     {
         lua_pop(L, -1);
-        TC_LOG_ERROR("eluna", "%s", msg);
+        ELUNA_LOG_ERROR("%s", msg);
         msg = lua_tostring(L, -1);
     }
 }
@@ -744,11 +681,6 @@ void Eluna::Register(uint8 regtype, uint32 id, uint32 evt, int functionRef)
             return;
         }
         break;
-
-    default:
-        luaL_unref(sEluna->L, LUA_REGISTRYINDEX, functionRef);
-        luaL_error(L, "Unknown register type (regtype %d, id %d, event %d)", regtype, id, evt);
-        return;
     }
     luaL_unref(sEluna->L, LUA_REGISTRYINDEX, functionRef);
     luaL_error(L, "Unknown event type (regtype %d, id %d, event %d)", regtype, id, evt);
