@@ -46,6 +46,7 @@
 #include "movement/MoveSpline.h"
 #include "MapManager.h"
 #include "TemporarySummon.h"
+#include "HookMgr.h"
 
 void ObjectMgr::LoadVehicleAccessory()
 {
@@ -138,9 +139,13 @@ void VehicleInfo::Initialize()
             m_accessoryGuids.insert(summoned->GetObjectGuid());
             int32 basepoint0 = itr->seatId + 1;
             summoned->CastCustomSpell((Unit*)m_owner, SPELL_RIDE_VEHICLE_HARDCODED, &basepoint0, NULL, NULL, true);
+
+            sHookMgr->OnInstallAccessory(this, summoned);
         }
     }
     m_isInitialized = true;
+
+    sHookMgr->OnInstall(this);
 }
 
 /**
@@ -212,6 +217,8 @@ void VehicleInfo::Board(Unit* passenger, uint8 seat)
 
     // Apply passenger modifications
     ApplySeatMods(passenger, seatEntry->m_flags);
+
+    sHookMgr->OnAddPassenger(this, passenger, seat);
 }
 
 /**
@@ -325,6 +332,8 @@ void VehicleInfo::UnBoard(Unit* passenger, bool changeVehicle)
 
     // Remove passenger modifications
     RemoveSeatMods(passenger, seatEntry->m_flags);
+
+    sHookMgr->OnRemovePassenger(this, passenger);
 
     // Some creature vehicles get despawned after passenger unboarding
     if (m_owner->GetTypeId() == TYPEID_UNIT)

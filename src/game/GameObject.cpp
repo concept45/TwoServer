@@ -198,6 +198,7 @@ bool GameObject::Create(uint32 guidlow, uint32 name_id, Map* map, uint32 phaseMa
         default:
             break;
     }
+    sHookMgr->OnSpawn(this);
 
     // Notify the battleground or outdoor pvp script
     if (map->IsBattleGroundOrArena())
@@ -1811,12 +1812,14 @@ bool GameObject::IsFriendlyTo(Unit const* unit) const
 void GameObject::SetLootState(LootState state)
 {
     m_lootState = state;
+    sHookMgr->OnLootStateChanged(this, state);
     UpdateCollisionState();
 }
 
 void GameObject::SetGoState(GOState state)
 {
     SetByteValue(GAMEOBJECT_BYTES_1, 0, state);
+    sHookMgr->OnGameObjectStateChanged(this, state);
     UpdateCollisionState();
 }
 
@@ -2257,6 +2260,8 @@ void GameObject::ForceGameObjectHealth(int32 diff, Unit* caster)
     {
         DEBUG_FILTER_LOG(LOG_FILTER_DAMAGE, "DestructibleGO: %s taken damage %u dealt by %s", GetGuidStr().c_str(), uint32(-diff), caster->GetGuidStr().c_str());
 
+        if(caster && caster->ToPlayer())
+            sHookMgr->OnDamaged(this, caster->ToPlayer());
         if (m_useTimes > uint32(-diff))
             m_useTimes += diff;
         else
@@ -2295,6 +2300,8 @@ void GameObject::ForceGameObjectHealth(int32 diff, Unit* caster)
         {
             DEBUG_FILTER_LOG(LOG_FILTER_DAMAGE, "DestructibleGO: %s got destroyed", GetGuidStr().c_str());
 
+            if(caster && caster->ToPlayer())
+                sHookMgr->OnDestroyed(this, caster->ToPlayer());
             RemoveFlag(GAMEOBJECT_FLAGS, GO_FLAG_UNK_9 | GO_FLAG_UNK_10);
             SetFlag(GAMEOBJECT_FLAGS, GO_FLAG_UNK_11);
 
