@@ -143,6 +143,21 @@ void VehicleInfo::Initialize()
             sHookMgr->OnInstallAccessory(this, summoned);
         }
     }
+
+    // Initialize movement limitations
+    uint32 vehicleFlags = GetVehicleEntry()->m_flags;
+
+    if (vehicleFlags & VEHICLE_FLAG_NO_STRAFE)
+        ((Unit*)m_owner)->m_movementInfo.AddMovementFlags2(MOVEFLAG2_NO_STRAFE);
+    if (vehicleFlags & VEHICLE_FLAG_NO_JUMPING)
+        ((Unit*)m_owner)->m_movementInfo.AddMovementFlags2(MOVEFLAG2_NO_JUMPING);
+    if (vehicleFlags & VEHICLE_FLAG_FULLSPEEDTURNING)
+        ((Unit*)m_owner)->m_movementInfo.AddMovementFlags2(MOVEFLAG2_FULLSPEEDTURNING);
+    if (vehicleFlags & VEHICLE_FLAG_ALLOW_PITCHING)
+        ((Unit*)m_owner)->m_movementInfo.AddMovementFlags2(MOVEFLAG2_ALLOW_PITCHING);
+    if (vehicleFlags & VEHICLE_FLAG_FULLSPEEDPITCHING)
+        ((Unit*)m_owner)->m_movementInfo.AddMovementFlags2(MOVEFLAG2_FULLSPEEDPITCHING);
+
     m_isInitialized = true;
 
     sHookMgr->OnInstall(this);
