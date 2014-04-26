@@ -23,6 +23,11 @@ extern "C"
 #include "CellImpl.h"
 #include "Chat.h"
 #include "Channel.h"
+#ifdef MANGOS
+#include "Config/Config.h"
+#else
+#include "Config.h"
+#endif
 #include "DBCStores.h"
 #include "GossipDef.h"
 #include "GridNotifiers.h"
@@ -68,12 +73,14 @@ typedef std::set<std::string> ScriptPaths;
 #ifdef MANGOS
 #undef  sWorld
 #undef  sMapMgr
+#undef  sConfigMgr
 #undef  sGuildMgr
 #undef  sObjectMgr
 #undef  sAccountMgr
 #undef  sObjectAccessor
 #define sWorld                  (&MaNGOS::Singleton<World>::Instance())
 #define sMapMgr                 (&MapManager::Instance())
+#define sConfigMgr              (&MaNGOS::Singleton<Config>::Instance())
 #define sGuildMgr               (&MaNGOS::Singleton<GuildMgr>::Instance())
 #define sObjectMgr              (&MaNGOS::Singleton<ObjectMgr>::Instance())
 #define sAccountMgr             (&MaNGOS::Singleton<AccountMgr>::Instance())
