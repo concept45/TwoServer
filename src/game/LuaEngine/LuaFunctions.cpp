@@ -64,6 +64,7 @@ void RegisterGlobals(lua_State* L)
     lua_register(L, "GetGUIDLow", &LuaGlobalFunctions::GetGUIDLow);                                         // GetGUIDLow(guid) - Returns GUIDLow (uint32) from guid (uint64 as string) UNDOCUMENTED
     lua_register(L, "GetGUIDType", &LuaGlobalFunctions::GetGUIDType);                                       // GetGUIDType(guid) - Returns Type (uint32) from guid (uint64 as string) UNDOCUMENTED
     lua_register(L, "GetGUIDEntry", &LuaGlobalFunctions::GetGUIDEntry);                                     // GetGUIDEntry(guid) - Returns Entry (uint32) from guid (uint64 as string), may be always 0 UNDOCUMENTED
+    lua_register(L, "GetAreaName", &LuaGlobalFunctions::GetAreaName);                                       // GetAreaName(area or zone ID[, locale]) - Returns area or zone (string) name by area or zone ID. Locale is optional (Default = 0 (enUS))
     lua_register(L, "bit_not", &LuaGlobalFunctions::bit_not);                                               // bit_not(a) - Returns ~a UNDOCUMENTED
     lua_register(L, "bit_xor", &LuaGlobalFunctions::bit_xor);                                               // bit_xor(a, b) - Returns a ^ b UNDOCUMENTED
     lua_register(L, "bit_rshift", &LuaGlobalFunctions::bit_rshift);                                         // bit_rshift(a, b) - Returns a >> b UNDOCUMENTED
@@ -701,7 +702,6 @@ ElunaRegister<Creature> CreatureMethods[] =
     { "GetScriptId", &LuaCreature::GetScriptId },                                     // :GetScriptId() - Returns creature's script ID
     { "GetAIName", &LuaCreature::GetAIName },                                         // :GetAIName() - Returns creature's AI name
     { "GetScriptName", &LuaCreature::GetScriptName },                                 // :GetScriptName() - Returns creature's script name
-    { "GetReactState", &LuaCreature::GetReactState },                                 // :GetReactState() - Returns creature's react state
     { "GetAttackDistance", &LuaCreature::GetAttackDistance },                         // :GetAttackDistance(unit) - Returns attack distance to unit
     { "GetAggroRange", &LuaCreature::GetAggroRange },                                 // :GetAggroRange(unit) - Returns aggro distance to unit
     { "GetDefaultMovementType", &LuaCreature::GetDefaultMovementType },               // :GetDefaultMovementType() - Returns default movement type
@@ -720,7 +720,7 @@ ElunaRegister<Creature> CreatureMethods[] =
     // Setters
     { "SetHover", &LuaCreature::SetHover },                                   // :SetHover([enable]) - Sets hover on or off
     // {"SetDisableGravity", &LuaCreature::SetDisableGravity},              // :SetDisableGravity([disable, packetOnly]) - Disables or enables gravity
-    { "SetReactState", &LuaCreature::SetReactState },                         // :SetReactState(state) - Sets react state
+    { "SetAllowedCombat", &LuaCreature::SetAllowedCombat },                   // :SetAllowedCombat(allow) - Allows the creature to attack or not
     { "SetNoCallAssistance", &LuaCreature::SetNoCallAssistance },             // :SetNoCallAssistance([noCall]) - Sets call assistance to false or true
     { "SetNoSearchAssistance", &LuaCreature::SetNoSearchAssistance },         // :SetNoSearchAssistance([noSearch]) - Sets assistance searhing to false or true
     { "SetDefaultMovementType", &LuaCreature::SetDefaultMovementType },       // :SetDefaultMovementType(type) - Sets default movement type
@@ -744,7 +744,7 @@ ElunaRegister<Creature> CreatureMethods[] =
     { "HasCategoryCooldown", &LuaCreature::HasCategoryCooldown },                                 // :HasCategoryCooldown(spellId) - Returns true if the creature has a cooldown for the spell's category
     { "CanWalk", &LuaCreature::CanWalk },                                                         // :CanWalk() - Returns true if the creature can walk
     { "CanSwim", &LuaCreature::CanSwim },                                                         // :CanSwim() - Returns true if the creature can swim
-    { "HasReactState", &LuaCreature::HasReactState },                                             // :HasReactState(state) - Returns true if the creature has react state
+    { "IsCombatAllowed", &LuaCreature::IsCombatAllowed },                                         // :IsCombatAllowed() - Returns true if the creature has combat allowed
     // {"CanStartAttack", &LuaCreature::CanStartAttack},                                        // :CanStartAttack(unit[, force]) - Returns true if the creature can attack the unit
     { "HasSearchedAssistance", &LuaCreature::HasSearchedAssistance },                             // :HasSearchedAssistance() - Returns true if the creature has searched assistance
     { "CanAssistTo", &LuaCreature::CanAssistTo },                                                 // :CanAssistTo(unit, enemy[, checkfaction]) - Returns true if the creature can assist unit with enemy
@@ -955,9 +955,6 @@ ElunaRegister<Quest> QuestMethods[] =
     { "IsDaily", &LuaQuest::IsDaily },                            // :IsDaily() - Returns true or false if the quest is a daily
 #endif
     { "IsRepeatable", &LuaQuest::IsRepeatable },                  // :IsRepeatable() - Returns true or false if the quest is repeatable
-
-    // Setters
-    { "SetFlag", &LuaQuest::SetFlag },                            // :SetFlag(flag) - Sets the flag of the quest by the specified flag
 
     { NULL, NULL },
 };
