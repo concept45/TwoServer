@@ -649,7 +649,7 @@ namespace LuaUnit
 
     int GetPowerType(lua_State* L, Unit* unit)
     {
-        sEluna->Push(L, unit->getPowerType());
+        sEluna->Push(L, unit->GetPowerType());
         return 1;
     }
 
@@ -671,7 +671,7 @@ namespace LuaUnit
 
     int GetPowerPct(lua_State* L, Unit* unit)
     {
-        float percent = (unit->GetPower(unit->getPowerType()) / unit->GetMaxPower(unit->getPowerType())) * 100;
+        float percent = (unit->GetPower(unit->GetPowerType()) / unit->GetMaxPower(unit->GetPowerType())) * 100;
         sEluna->Push(L, percent);
         return 1;
     }
