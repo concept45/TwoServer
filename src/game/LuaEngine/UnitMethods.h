@@ -649,7 +649,11 @@ namespace LuaUnit
 
     int GetPowerType(lua_State* L, Unit* unit)
     {
+#if (defined(MANGOS) && defined(WOTLK))
         sEluna->Push(L, unit->GetPowerType());
+#else
+        sEluna->Push(L, unit->getPowerType());
+#endif
         return 1;
     }
 
@@ -671,7 +675,11 @@ namespace LuaUnit
 
     int GetPowerPct(lua_State* L, Unit* unit)
     {
+#if (defined(MANGOS) && defined(WOTLK))
         float percent = (unit->GetPower(unit->GetPowerType()) / unit->GetMaxPower(unit->GetPowerType())) * 100;
+#else
+        float percent = (unit->GetPower(unit->getPowerType()) / unit->GetMaxPower(unit->getPowerType())) * 100;
+#endif
         sEluna->Push(L, percent);
         return 1;
     }
