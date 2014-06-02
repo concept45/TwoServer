@@ -145,7 +145,7 @@ typedef ThreatContainer::StorageType ThreatList;
 #endif
 #endif
 #ifndef CLASSIC
-typedef Opcodes                 OpcodesList;
+typedef OpcodesList             Opcodes
 #endif
 
 class Eluna;
