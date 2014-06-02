@@ -13,9 +13,9 @@ namespace LuaCorpse
     int GetOwnerGUID(lua_State* L, Corpse* corpse)
     {
 #ifdef MANGOS
-        Eluna::Push(L, corpse->GetOwnerGuid());
+        sEluna->Push(L, corpse->GetOwnerGuid());
 #else
-        Eluna::Push(L, corpse->GetOwnerGUID());
+        sEluna->Push(L, corpse->GetOwnerGUID());
 #endif
         return 1;
     }
@@ -23,14 +23,14 @@ namespace LuaCorpse
     // GetGhostTime()
     int GetGhostTime(lua_State* L, Corpse* corpse)
     {
-        Eluna::Push(L, uint32(corpse->GetGhostTime()));
+        sEluna->Push(L, uint32(corpse->GetGhostTime()));
         return 1;
     }
 
     // GetType()
     int GetType(lua_State* L, Corpse* corpse)
     {
-        Eluna::Push(L, corpse->GetType());
+        sEluna->Push(L, corpse->GetType());
         return 1;
     }
 

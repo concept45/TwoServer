@@ -4,454 +4,474 @@
 * Please see the included DOCS/LICENSE.md for more information
 */
 
-#include "HookMgr.h"
 #include "LuaEngine.h"
-#include "Includes.h"
+#include "HookMgr.h"
 
-/*
-Call model for EventBind:
-
-// Begin the call if should
-EVENT_BEGIN(bindmap, eventid, return returnvalue);
-// push arguments
-Push(L, pPlayer);
-EVENT_EXECUTE(returnedargs);
-FOR_RET(iter)
+void HookMgr::OnEngineRestart()
 {
-// process returned arguments
+    if (!sEluna->ServerEventBindings.HasEvents(ELUNA_EVENT_ON_RESTART))
+        return;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(ELUNA_EVENT_ON_RESTART);
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
 }
-ENDCALL();
-*/
 
-// RET is a return statement
-#define EVENT_BEGIN(BINDMAP, EVENT, RET) \
-    if (!BINDMAP->HasEvents(EVENT)) \
-        RET; \
-    lua_State* L = sEluna->L; \
-    uint32 _LuaEvent = EVENT; \
-    int _LuaStackTop = lua_gettop(L); \
-    EventBind* _LuaBindMap = sEluna->BINDMAP; \
-    Eluna::Push(L, _LuaEvent);
-
-// use LUA_MULTRET for multiple return values
-// return values will be at top of stack if any
-#define EVENT_EXECUTE(RETVALS) \
-    int _LuaReturnValues = RETVALS; \
-    int _LuaParams = lua_gettop(L) - _LuaStackTop; \
-    if (_LuaParams < 1) \
-        { \
-        ELUNA_LOG_ERROR("[Eluna]: Executing event %u, params was %i. Report to devs", _LuaEvent, _LuaParams); \
-        } \
-    for (EventBind::ElunaBindingMap::const_iterator it = _LuaBindMap->Bindings[_LuaEvent].begin(); it != _LuaBindMap->Bindings[_LuaEvent].end(); ++it) \
-        { \
-        lua_rawgeti(L, LUA_REGISTRYINDEX, (*it)); \
-        int stacktop = lua_gettop(L); \
-        for (int i = stacktop - _LuaParams; i < stacktop; ++i) \
-            lua_pushvalue(L, i); \
-        Eluna::ExecuteCall(L, _LuaParams, _LuaReturnValues); \
-        } \
-    for (int i = _LuaParams; i > 0; --i) \
-        if (!lua_isnone(L, i)) \
-            lua_remove(L, i);
-
-// RET is a return statement
-#define ENTRY_BEGIN(BINDMAP, ENTRY, EVENT, RET) \
-    int _Luabind = sEluna->BINDMAP->GetBind(ENTRY, EVENT); \
-    if (!_Luabind) \
-        RET; \
-    lua_State* L = sEluna->L; \
-    uint32 _LuaEvent = EVENT; \
-    int _LuaStackTop = lua_gettop(L); \
-    lua_rawgeti(L, LUA_REGISTRYINDEX, _Luabind); \
-    Eluna::Push(L, _LuaEvent);
-
-#define ENTRY_EXECUTE(RETVALS) \
-    int _LuaReturnValues = RETVALS; \
-    int _LuaParams = lua_gettop(L) - _LuaStackTop - 1; \
-    Eluna::ExecuteCall(L, _LuaParams, _LuaReturnValues);
-
-#define FOR_RETS(IT) \
-    for (int IT = _LuaStackTop + 1; IT <= lua_gettop(L); ++IT)
-
-#define ENDCALL() \
-    if (_LuaReturnValues != LUA_MULTRET && lua_gettop(L) != _LuaStackTop + _LuaReturnValues) \
-            { \
-        ELUNA_LOG_ERROR("[Eluna]: Ending event %u, stack top was %i and was supposed to be %i. Report to devs", _LuaEvent, lua_gettop(L), _LuaStackTop); \
-            } \
-    lua_settop(L, _LuaStackTop);
-
-void Eluna::OnLuaStateClose()
+void HookMgr::OnWorldUpdate(uint32 diff)
 {
-    EVENT_BEGIN(ServerEventBindings, ELUNA_EVENT_ON_LUA_STATE_CLOSE, return);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    sEluna->m_EventMgr.Update(diff);
+    if (!sEluna->ServerEventBindings.HasEvents(WORLD_EVENT_ON_UPDATE))
+        return;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(WORLD_EVENT_ON_UPDATE);
+    sEluna->Push(sEluna->L, diff);
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
 }
 
 // areatrigger
-bool Eluna::OnAreaTrigger(Player* pPlayer, AreaTriggerEntry const* pTrigger)
+bool HookMgr::OnAreaTrigger(Player* pPlayer, AreaTriggerEntry const* pTrigger)
 {
-    EVENT_BEGIN(ServerEventBindings, TRIGGER_EVENT_ON_TRIGGER, return false);
-    Push(L, pPlayer);
-    Push(L, pTrigger->id);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->ServerEventBindings.HasEvents(TRIGGER_EVENT_ON_TRIGGER))
+        return false;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(TRIGGER_EVENT_ON_TRIGGER);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pTrigger->id);
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
     return false;
 }
 // weather
-void Eluna::OnChange(Weather* weather, WeatherState state, float grade)
+void HookMgr::OnChange(Weather* weather, WeatherState state, float grade)
 {
-    EVENT_BEGIN(ServerEventBindings, WEATHER_EVENT_ON_CHANGE, return);
-    Push(L, weather->GetZone());
-    Push(L, state);
-    Push(L, grade);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->ServerEventBindings.HasEvents(WEATHER_EVENT_ON_CHANGE))
+        return;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(WEATHER_EVENT_ON_CHANGE);
+    sEluna->Push(sEluna->L, (weather->GetZone()));
+    sEluna->Push(sEluna->L, state);
+    sEluna->Push(sEluna->L, grade);
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
 }
 // Auction House
-void Eluna::OnAdd(AuctionHouseObject* ah)
+void HookMgr::OnAdd(AuctionHouseObject* ah)
 {
-    EVENT_BEGIN(ServerEventBindings, AUCTION_EVENT_ON_ADD, return);
-    Push(L, (ah));
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->ServerEventBindings.HasEvents(AUCTION_EVENT_ON_ADD))
+        return;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(AUCTION_EVENT_ON_ADD);
+    sEluna->Push(sEluna->L, (ah));
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
 }
 
-void Eluna::OnRemove(AuctionHouseObject* ah)
+void HookMgr::OnRemove(AuctionHouseObject* ah)
 {
-    EVENT_BEGIN(ServerEventBindings, AUCTION_EVENT_ON_REMOVE, return);
-    Push(L, (ah));
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->ServerEventBindings.HasEvents(AUCTION_EVENT_ON_REMOVE))
+        return;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(AUCTION_EVENT_ON_REMOVE);
+    sEluna->Push(sEluna->L, (ah));
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
 }
 
-void Eluna::OnSuccessful(AuctionHouseObject* ah)
+void HookMgr::OnSuccessful(AuctionHouseObject* ah)
 {
-    EVENT_BEGIN(ServerEventBindings, AUCTION_EVENT_ON_SUCCESSFUL, return);
-    Push(L, (ah));
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->ServerEventBindings.HasEvents(AUCTION_EVENT_ON_SUCCESSFUL))
+        return;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(AUCTION_EVENT_ON_SUCCESSFUL);
+    sEluna->Push(sEluna->L, (ah));
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
 }
 
-void Eluna::OnExpire(AuctionHouseObject* ah)
+void HookMgr::OnExpire(AuctionHouseObject* ah)
 {
-    EVENT_BEGIN(ServerEventBindings, AUCTION_EVENT_ON_EXPIRE, return);
-    Push(L, (ah));
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->ServerEventBindings.HasEvents(AUCTION_EVENT_ON_EXPIRE))
+        return;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(AUCTION_EVENT_ON_EXPIRE);
+    sEluna->Push(sEluna->L, (ah));
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
 }
 
 // Packet
-bool Eluna::OnPacketSend(WorldSession* session, WorldPacket& packet)
+bool HookMgr::OnPacketSend(WorldSession* session, WorldPacket& packet)
 {
     bool result = true;
     Player* player = NULL;
     if (session)
         player = session->GetPlayer();
-    OnPacketSendOne(player, packet, result);
-    OnPacketSendOne(player, packet, result);
+    if (sEluna->ServerEventBindings.HasEvents(SERVER_EVENT_ON_PACKET_SEND))
+    {
+        ELUNA_GUARD();
+        sEluna->ServerEventBindings.BeginCall(SERVER_EVENT_ON_PACKET_SEND);
+        sEluna->Push(sEluna->L, new WorldPacket(packet));
+        sEluna->Push(sEluna->L, player);
+        sEluna->ServerEventBindings.ExecuteCall();
+        for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
+        {
+            if (lua_isnoneornil(sEluna->L, i))
+                continue;
+            if (WorldPacket* data = sEluna->CHECKOBJ<WorldPacket>(sEluna->L, i, false))
+                packet = *data;
+            if (!sEluna->CHECKVAL<bool>(sEluna->L, i, true))
+            {
+                result = false;
+                break;
+            }
+        }
+        sEluna->ServerEventBindings.EndCall();
+    }
+    if (sEluna->PacketEventBindings.HasEvents(Opcodes(packet.GetOpcode())))
+    {
+        ELUNA_GUARD();
+        sEluna->PacketEventBindings.BeginCall(Opcodes(packet.GetOpcode()));
+        sEluna->Push(sEluna->L, new WorldPacket(packet));
+        sEluna->Push(sEluna->L, player);
+        sEluna->PacketEventBindings.ExecuteCall();
+        for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
+        {
+            if (lua_isnoneornil(sEluna->L, i))
+                continue;
+            if (WorldPacket* data = sEluna->CHECKOBJ<WorldPacket>(sEluna->L, i, false))
+                packet = *data;
+            if (!sEluna->CHECKVAL<bool>(sEluna->L, i, true))
+            {
+                result = false;
+                break;
+            }
+        }
+        sEluna->PacketEventBindings.EndCall();
+    }
     return result;
 }
-void Eluna::OnPacketSendAny(Player* player, WorldPacket& packet, bool& result)
-{
-    EVENT_BEGIN(ServerEventBindings, SERVER_EVENT_ON_PACKET_SEND, return);
-    Push(L, new WorldPacket(packet));
-    Push(L, player);
-    EVENT_EXECUTE(2);
-    FOR_RETS(i)
-    {
-        if (lua_isnoneornil(L, i))
-            continue;
-        if (WorldPacket* data = CHECKOBJ<WorldPacket>(L, i, false))
-            packet = *data;
-        if (!CHECKVAL<bool>(L, i, true))
-        {
-            result = false;
-            break;
-        }
-    }
-    ENDCALL();
-}
-void Eluna::OnPacketSendOne(Player* player, WorldPacket& packet, bool& result)
-{
-    ENTRY_BEGIN(PacketEventBindings, OpcodesList(packet.GetOpcode()), SERVER_EVENT_ON_PACKET_SEND, return);
-    Push(L, new WorldPacket(packet));
-    Push(L, player);
-    ENTRY_EXECUTE(2);
-    FOR_RETS(i)
-    {
-        if (lua_isnoneornil(L, i))
-            continue;
-        if (WorldPacket* data = CHECKOBJ<WorldPacket>(L, i, false))
-            packet = *data;
-        if (!CHECKVAL<bool>(L, i, true))
-        {
-            result = false;
-            break;
-        }
-    }
-    ENDCALL();
-}
-
-bool Eluna::OnPacketReceive(WorldSession* session, WorldPacket& packet)
+bool HookMgr::OnPacketReceive(WorldSession* session, WorldPacket& packet)
 {
     bool result = true;
     Player* player = NULL;
     if (session)
         player = session->GetPlayer();
-    OnPacketReceiveAny(player, packet, result);
-    OnPacketReceiveOne(player, packet, result);
+    if (sEluna->ServerEventBindings.HasEvents(SERVER_EVENT_ON_PACKET_RECEIVE))
+    {
+        ELUNA_GUARD();
+        sEluna->ServerEventBindings.BeginCall(SERVER_EVENT_ON_PACKET_RECEIVE);
+        sEluna->Push(sEluna->L, new WorldPacket(packet));
+        sEluna->Push(sEluna->L, player);
+        sEluna->ServerEventBindings.ExecuteCall();
+        for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
+        {
+            if (lua_isnoneornil(sEluna->L, i))
+                continue;
+            if (WorldPacket* data = sEluna->CHECKOBJ<WorldPacket>(sEluna->L, i, false))
+                packet = *data;
+            if (!sEluna->CHECKVAL<bool>(sEluna->L, i, true))
+            {
+                result = false;
+                break;
+            }
+        }
+        sEluna->ServerEventBindings.EndCall();
+    }
+    if (sEluna->PacketEventBindings.HasEvents(Opcodes(packet.GetOpcode())))
+    {
+        ELUNA_GUARD();
+        sEluna->PacketEventBindings.BeginCall(Opcodes(packet.GetOpcode()));
+        sEluna->Push(sEluna->L, new WorldPacket(packet));
+        sEluna->Push(sEluna->L, player);
+        sEluna->PacketEventBindings.ExecuteCall();
+        for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
+        {
+            if (lua_isnoneornil(sEluna->L, i))
+                continue;
+            if (WorldPacket* data = sEluna->CHECKOBJ<WorldPacket>(sEluna->L, i, false))
+                packet = *data;
+            if (!sEluna->CHECKVAL<bool>(sEluna->L, i, true))
+            {
+                result = false;
+                break;
+            }
+        }
+        sEluna->PacketEventBindings.EndCall();
+    }
     return result;
 }
-void Eluna::OnPacketReceiveAny(Player* player, WorldPacket& packet, bool& result)
-{
-    EVENT_BEGIN(ServerEventBindings, SERVER_EVENT_ON_PACKET_RECEIVE, return);
-    Push(L, new WorldPacket(packet));
-    Push(L, player);
-    EVENT_EXECUTE(2);
-    FOR_RETS(i)
-    {
-        if (lua_isnoneornil(L, i))
-            continue;
-        if (WorldPacket* data = CHECKOBJ<WorldPacket>(L, i, false))
-            packet = *data;
-        if (!CHECKVAL<bool>(L, i, true))
-        {
-            result = false;
-            break;
-        }
-    }
-    ENDCALL();
-}
-void Eluna::OnPacketReceiveOne(Player* player, WorldPacket& packet, bool& result)
-{
-    ENTRY_BEGIN(PacketEventBindings, OpcodesList(packet.GetOpcode()), SERVER_EVENT_ON_PACKET_RECEIVE, return);
-    Push(L, new WorldPacket(packet));
-    Push(L, player);
-    ENTRY_EXECUTE(2);
-    FOR_RETS(i)
-    {
-        if (lua_isnoneornil(L, i))
-            continue;
-        if (WorldPacket* data = CHECKOBJ<WorldPacket>(L, i, false))
-            packet = *data;
-        if (!CHECKVAL<bool>(L, i, true))
-        {
-            result = false;
-            break;
-        }
-    }
-    ENDCALL();
-}
-
 // AddOns
-bool Eluna::OnAddonMessage(Player* sender, uint32 type, std::string& msg, Player* receiver, Guild* guild, Group* group, Channel* channel)
+bool HookMgr::OnAddonMessage(Player* sender, uint32 type, std::string& msg, Player* receiver, Guild* guild, Group* group, Channel* channel)
 {
-    EVENT_BEGIN(ServerEventBindings, ADDON_EVENT_ON_MESSAGE, return false);
-    Push(L, sender);
-    Push(L, type);
+    if (!sEluna->ServerEventBindings.HasEvents(ADDON_EVENT_ON_MESSAGE))
+		return false;
+	ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(ADDON_EVENT_ON_MESSAGE);
+    sEluna->Push(sEluna->L, sender);
+    sEluna->Push(sEluna->L, type);
     const char* c_msg = msg.c_str();
-    Push(L, strtok((char*)c_msg, "\t")); // prefix
-    Push(L, strtok(NULL, "")); // msg
+    sEluna->Push(sEluna->L, strtok((char*)c_msg, "\t")); // prefix
+    sEluna->Push(sEluna->L, strtok(NULL, "")); // msg
     if (receiver)
-        Push(L, receiver);
+        sEluna->Push(sEluna->L, receiver);
     else if (guild)
-        Push(L, guild);
+        sEluna->Push(sEluna->L, guild);
     else if (group)
-        Push(L, group);
+        sEluna->Push(sEluna->L, group);
     else if (channel)
-        Push(L, channel->GetChannelId());
+        sEluna->Push(sEluna->L, channel->GetChannelId());
     else
-        Push(L);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+        sEluna->Push(sEluna->L);
+	sEluna->ServerEventBindings.ExecuteCall();
+	sEluna->ServerEventBindings.EndCall();
     return true;
 }
 
-void Eluna::OnOpenStateChange(bool open)
+#ifndef MANGOS
+class ElunaWorldAI : public WorldScript
 {
-    EVENT_BEGIN(ServerEventBindings, WORLD_EVENT_ON_OPEN_STATE_CHANGE, return);
-    Push(L, open);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+public:
+    ElunaWorldAI() : WorldScript("ElunaWorldAI") {}
+    ~ElunaWorldAI() {}
+
+    void OnOpenStateChange(bool open) override
+    {
+        if (!sEluna->ServerEventBindings.HasEvents(WORLD_EVENT_ON_OPEN_STATE_CHANGE))
+            return;
+        ELUNA_GUARD();
+        sEluna->ServerEventBindings.BeginCall(WORLD_EVENT_ON_OPEN_STATE_CHANGE);
+        sEluna->Push(sEluna->L, open);
+        sEluna->ServerEventBindings.ExecuteCall();
+        sEluna->ServerEventBindings.EndCall();
+    }
+
+    void OnConfigLoad(bool reload) override
+    {
+        if (!sEluna->ServerEventBindings.HasEvents(WORLD_EVENT_ON_CONFIG_LOAD))
+            return;
+        ELUNA_GUARD();
+        sEluna->ServerEventBindings.BeginCall(WORLD_EVENT_ON_CONFIG_LOAD);
+        sEluna->Push(sEluna->L, reload);
+        sEluna->ServerEventBindings.ExecuteCall();
+        sEluna->ServerEventBindings.EndCall();
+    }
+
+    void OnShutdownInitiate(ShutdownExitCode code, ShutdownMask mask) override
+    {
+        if (!sEluna->ServerEventBindings.HasEvents(WORLD_EVENT_ON_SHUTDOWN_INIT))
+            return;
+        ELUNA_GUARD();
+        sEluna->ServerEventBindings.BeginCall(WORLD_EVENT_ON_SHUTDOWN_INIT);
+        sEluna->Push(sEluna->L, code);
+        sEluna->Push(sEluna->L, mask);
+        sEluna->ServerEventBindings.ExecuteCall();
+        sEluna->ServerEventBindings.EndCall();
+    }
+
+    void OnShutdownCancel() override
+    {
+        if (!sEluna->ServerEventBindings.HasEvents(WORLD_EVENT_ON_SHUTDOWN_CANCEL))
+            return;
+        ELUNA_GUARD();
+        sEluna->ServerEventBindings.BeginCall(WORLD_EVENT_ON_SHUTDOWN_CANCEL);
+        sEluna->ServerEventBindings.ExecuteCall();
+        sEluna->ServerEventBindings.EndCall();
+    }
+
+    void OnUpdate(uint32 diff) override
+    {
+        sEluna->m_EventMgr.Update(diff);
+        if (!sEluna->ServerEventBindings.HasEvents(WORLD_EVENT_ON_UPDATE))
+            return;
+        ELUNA_GUARD();
+        sEluna->ServerEventBindings.BeginCall(WORLD_EVENT_ON_UPDATE);
+        sEluna->Push(sEluna->L, diff);
+        sEluna->ServerEventBindings.ExecuteCall();
+        sEluna->ServerEventBindings.EndCall();
+    }
+
+    void OnStartup() override
+    {
+        if (!sEluna->ServerEventBindings.HasEvents(WORLD_EVENT_ON_STARTUP))
+            return;
+        ELUNA_GUARD();
+        sEluna->ServerEventBindings.BeginCall(WORLD_EVENT_ON_STARTUP);
+        sEluna->ServerEventBindings.ExecuteCall();
+        sEluna->ServerEventBindings.EndCall();
+    }
+
+    void OnShutdown() override
+    {
+        if (!sEluna->ServerEventBindings.HasEvents(WORLD_EVENT_ON_SHUTDOWN))
+            return;
+        ELUNA_GUARD();
+        sEluna->ServerEventBindings.BeginCall(WORLD_EVENT_ON_SHUTDOWN);
+        sEluna->ServerEventBindings.ExecuteCall();
+        sEluna->ServerEventBindings.EndCall();
+    }
+};
+#endif
+
+void HookMgr::HandleGossipSelectOption(Player* pPlayer, Item* item, uint32 sender, uint32 action, std::string code)
+{
+    int bind = sEluna->ItemGossipBindings.GetBind(item->GetEntry(), GOSSIP_EVENT_ON_SELECT);
+    if (bind)
+    {
+        ELUNA_GUARD();
+        pPlayer->PlayerTalkClass->ClearMenus();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, GOSSIP_EVENT_ON_SELECT);
+        sEluna->Push(sEluna->L, pPlayer);
+        sEluna->Push(sEluna->L, item);
+        sEluna->Push(sEluna->L, sender);
+        sEluna->Push(sEluna->L, action);
+        if (code.empty())
+            sEluna->Push(sEluna->L);
+        else
+            sEluna->Push(sEluna->L, code);
+        sEluna->ExecuteCall(6, 0);
+    }
 }
 
-void Eluna::OnConfigLoad(bool reload)
+void HookMgr::HandleGossipSelectOption(Player* pPlayer, uint32 menuId, uint32 sender, uint32 action, std::string code)
 {
-    EVENT_BEGIN(ServerEventBindings, WORLD_EVENT_ON_CONFIG_LOAD, return);
-    Push(L, reload);
-    EVENT_EXECUTE(0);
-    ENDCALL();
-}
-
-void Eluna::OnShutdownInitiate(ShutdownExitCode code, ShutdownMask mask)
-{
-    EVENT_BEGIN(ServerEventBindings, WORLD_EVENT_ON_SHUTDOWN_INIT, return);
-    Push(L, code);
-    Push(L, mask);
-    EVENT_EXECUTE(0);
-    ENDCALL();
-}
-
-void Eluna::OnShutdownCancel()
-{
-    EVENT_BEGIN(ServerEventBindings, WORLD_EVENT_ON_SHUTDOWN_CANCEL, return);
-    EVENT_EXECUTE(0);
-    ENDCALL();
-}
-
-void Eluna::OnWorldUpdate(uint32 diff)
-{
-    m_EventMgr->Update(diff);
-    EVENT_BEGIN(ServerEventBindings, WORLD_EVENT_ON_UPDATE, return);
-    Push(L, diff);
-    EVENT_EXECUTE(0);
-    ENDCALL();
-}
-
-void Eluna::OnStartup()
-{
-    EVENT_BEGIN(ServerEventBindings, WORLD_EVENT_ON_STARTUP, return);
-    EVENT_EXECUTE(0);
-    ENDCALL();
-}
-
-void Eluna::OnShutdown()
-{
-    EVENT_BEGIN(ServerEventBindings, WORLD_EVENT_ON_SHUTDOWN, return);
-    EVENT_EXECUTE(0);
-    ENDCALL();
-}
-
-void Eluna::HandleGossipSelectOption(Player* pPlayer, Item* item, uint32 sender, uint32 action, std::string code)
-{
-    ENTRY_BEGIN(ItemGossipBindings, item->GetEntry(), GOSSIP_EVENT_ON_SELECT, return);
-    pPlayer->PlayerTalkClass->ClearMenus();
-    Push(L, pPlayer);
-    Push(L, item);
-    Push(L, sender);
-    Push(L, action);
-    if (code.empty())
-        Push(L);
-    else
-        Push(L, code);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
-}
-
-void Eluna::HandleGossipSelectOption(Player* pPlayer, uint32 menuId, uint32 sender, uint32 action, std::string code)
-{
-    ENTRY_BEGIN(playerGossipBindings, menuId, GOSSIP_EVENT_ON_SELECT, return);
-    pPlayer->PlayerTalkClass->ClearMenus();
-    Push(L, pPlayer); // receiver
-    Push(L, pPlayer); // sender, just not to mess up the amount of args.
-    Push(L, sender);
-    Push(L, action);
-    if (code.empty())
-        Push(L);
-    else
-        Push(L, code);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->playerGossipBindings.GetBind(menuId, GOSSIP_EVENT_ON_SELECT);
+    if (bind)
+    {
+        ELUNA_GUARD();
+        pPlayer->PlayerTalkClass->ClearMenus();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, GOSSIP_EVENT_ON_SELECT);
+        sEluna->Push(sEluna->L, pPlayer); // receiver
+        sEluna->Push(sEluna->L, pPlayer); // sender, just not to mess up the amount of args.
+        sEluna->Push(sEluna->L, sender);
+        sEluna->Push(sEluna->L, action);
+        if (code.empty())
+            sEluna->Push(sEluna->L);
+        else
+            sEluna->Push(sEluna->L, code);
+        sEluna->Push(sEluna->L, menuId);
+        sEluna->ExecuteCall(7, 0);
+    }
 }
 
 // item
-bool Eluna::OnDummyEffect(Unit* pCaster, uint32 spellId, SpellEffIndex effIndex, Item* pTarget)
+bool HookMgr::OnDummyEffect(Unit* pCaster, uint32 spellId, SpellEffIndex effIndex, Item* pTarget)
 {
-    ENTRY_BEGIN(ItemEventBindings, pTarget->GetEntry(), ITEM_EVENT_ON_DUMMY_EFFECT, return false);
-    Push(L, pCaster);
-    Push(L, spellId);
-    Push(L, effIndex);
-    Push(L, pTarget);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->ItemEventBindings.GetBind(pTarget->GetEntry(), ITEM_EVENT_ON_DUMMY_EFFECT);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, ITEM_EVENT_ON_DUMMY_EFFECT);
+    sEluna->Push(sEluna->L, pCaster);
+    sEluna->Push(sEluna->L, spellId);
+    sEluna->Push(sEluna->L, effIndex);
+    sEluna->Push(sEluna->L, pTarget);
+    sEluna->ExecuteCall(5, 0);
     return true;
 }
 
-bool Eluna::OnQuestAccept(Player* pPlayer, Item* pItem, Quest const* pQuest)
+bool HookMgr::OnQuestAccept(Player* pPlayer, Item* pItem, Quest const* pQuest)
 {
-    ENTRY_BEGIN(ItemEventBindings, pItem->GetEntry(), ITEM_EVENT_ON_QUEST_ACCEPT, return false);
-    Push(L, pPlayer);
-    Push(L, pItem);
-    Push(L, pQuest);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->ItemEventBindings.GetBind(pItem->GetEntry(), ITEM_EVENT_ON_QUEST_ACCEPT);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, ITEM_EVENT_ON_QUEST_ACCEPT);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pItem);
+    sEluna->Push(sEluna->L, pQuest);
+    sEluna->ExecuteCall(4, 0);
     return true;
 }
 
-bool Eluna::OnUse(Player* pPlayer, Item* pItem, SpellCastTargets const& targets)
+bool HookMgr::OnUse(Player* pPlayer, Item* pItem, SpellCastTargets const& targets)
 {
-    OnItemUse(pPlayer, pItem, targets);
-    OnItemGossip(pPlayer, pItem, targets);
-    // pPlayer->SendEquipError((InventoryResult)83, pItem, NULL);
-    // return true;
-    return false;
-}
-bool Eluna::OnItemUse(Player* pPlayer, Item* pItem, SpellCastTargets const& targets)
-{
-    ENTRY_BEGIN(ItemEventBindings, pItem->GetEntry(), GOSSIP_EVENT_ON_HELLO, return false);
-    Push(L, pPlayer);
-    Push(L, pItem);
+    int bind1 = sEluna->ItemGossipBindings.GetBind(pItem->GetEntry(), GOSSIP_EVENT_ON_HELLO);
+    int bind2 = sEluna->ItemEventBindings.GetBind(pItem->GetEntry(), ITEM_EVENT_ON_USE);
+    if (!bind1 && !bind2)
+        return false;
+    ELUNA_GUARD();
+    if (bind1)
+    {
+        pPlayer->PlayerTalkClass->ClearMenus();
+        sEluna->BeginCall(bind1);
+        sEluna->Push(sEluna->L, GOSSIP_EVENT_ON_HELLO);
+        sEluna->Push(sEluna->L, pPlayer);
+        sEluna->Push(sEluna->L, pItem);
+        sEluna->ExecuteCall(3, 0);
+    }
+    if (bind2)
+    {
+        sEluna->BeginCall(bind2);
+        sEluna->Push(sEluna->L, ITEM_EVENT_ON_USE);
+        sEluna->Push(sEluna->L, pPlayer);
+        sEluna->Push(sEluna->L, pItem);
 #ifdef MANGOS
-    if (GameObject* target = targets.getGOTarget())
-        Push(L, target);
-    else if (Item* target = targets.getItemTarget())
-        Push(L, target);
-    else if (Corpse* target = pPlayer->GetMap()->GetCorpse(targets.getCorpseTargetGuid()))
-        Push(L, target);
-    else if (Unit* target = targets.getUnitTarget())
-        Push(L, target);
-    else
-        Push(L);
+        if (GameObject* target = targets.getGOTarget())
+            sEluna->Push(sEluna->L, target);
+        else if (Item* target = targets.getItemTarget())
+            sEluna->Push(sEluna->L, target);
+        else if (Corpse* target = pPlayer->GetMap()->GetCorpse(targets.getCorpseTargetGuid()))
+            sEluna->Push(sEluna->L, target);
+        else if (Unit* target = targets.getUnitTarget())
+            sEluna->Push(sEluna->L, target);
+        else
+            sEluna->Push(sEluna->L);
 #else
-    if (GameObject* target = targets.GetGOTarget())
-        Push(L, target);
-    else if (Item* target = targets.GetItemTarget())
-        Push(L, target);
-    else if (Corpse* target = targets.GetCorpseTarget())
-        Push(L, target);
-    else if (Unit* target = targets.GetUnitTarget())
-        Push(L, target);
-    else if (WorldObject* target = targets.GetObjectTarget())
-        Push(L, target);
-    else
-        Push(L);
+        if (GameObject* target = targets.GetGOTarget())
+            sEluna->Push(sEluna->L, target);
+        else if (Item* target = targets.GetItemTarget())
+            sEluna->Push(sEluna->L, target);
+        else if (Corpse* target = targets.GetCorpseTarget())
+            sEluna->Push(sEluna->L, target);
+        else if (Unit* target = targets.GetUnitTarget())
+            sEluna->Push(sEluna->L, target);
+        else if (WorldObject* target = targets.GetObjectTarget())
+            sEluna->Push(sEluna->L, target);
+        else
+            sEluna->Push(sEluna->L);
 #endif
-    ENTRY_EXECUTE(0);
-    ENDCALL();
-    return true;
-}
-bool Eluna::OnItemGossip(Player* pPlayer, Item* pItem, SpellCastTargets const& targets)
-{
-    ENTRY_BEGIN(ItemEventBindings, pItem->GetEntry(), ITEM_EVENT_ON_USE, return false);
-    Push(L, pPlayer);
-    Push(L, pItem);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+        sEluna->ExecuteCall(4, 0);
+    }
+    // pPlayer->SendEquipError((InventoryResult)83, pItem, NULL);
     return true;
 }
 
-bool Eluna::OnExpire(Player* pPlayer, ItemTemplate const* pProto)
+bool HookMgr::OnExpire(Player* pPlayer, ItemTemplate const* pProto)
 {
-    ENTRY_BEGIN(ItemEventBindings, pProto->ItemId, ITEM_EVENT_ON_EXPIRE, return false);
-    Push(L, pPlayer);
-    Push(L, pProto->ItemId);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->ItemEventBindings.GetBind(pProto->ItemId, ITEM_EVENT_ON_EXPIRE);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, ITEM_EVENT_ON_EXPIRE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pProto->ItemId);
+    sEluna->ExecuteCall(3, 0);
     return true;
 }
 
-bool Eluna::OnRemove(Player* pPlayer, Item* item)
+bool HookMgr::OnRemove(Player* pPlayer, Item* item)
 {
-    ENTRY_BEGIN(ItemEventBindings, item->GetEntry(), ITEM_EVENT_ON_REMOVE, return false);
-    Push(L, pPlayer);
-    Push(L, item);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->ItemEventBindings.GetBind(item->GetEntry(), ITEM_EVENT_ON_REMOVE);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, ITEM_EVENT_ON_REMOVE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, item);
+    sEluna->ExecuteCall(3, 0);
     return true;
 }
 
 // Player
-bool Eluna::OnCommand(Player* player, const char* text)
+extern bool StartEluna();
+bool HookMgr::OnCommand(Player* player, const char* text)
 {
     std::string fullcmd(text);
     char* creload = strtok((char*)text, " ");
@@ -466,853 +486,1094 @@ bool Eluna::OnCommand(Player* player, const char* text)
             std::transform(eluna.begin(), eluna.end(), eluna.begin(), ::tolower);
             if (std::string("eluna").find(eluna) == 0)
             {
-                eWorld->SendServerMessage(SERVER_MSG_STRING, "Reloading Eluna...");
-                ReloadEluna();
+                sWorld->SendServerMessage(SERVER_MSG_STRING, "Reloading Eluna...");
+                StartEluna();
                 return false;
             }
         }
     }
     bool result = true;
-    EVENT_BEGIN(ServerEventBindings, PLAYER_EVENT_ON_COMMAND, return result);
-    Push(L, player);
-    Push(L, fullcmd);
-    EVENT_EXECUTE(1);
-    FOR_RETS(i)
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_COMMAND))
+        return result;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_COMMAND);
+    sEluna->Push(sEluna->L, player);
+    sEluna->Push(sEluna->L, fullcmd);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
     {
-        if (lua_isnoneornil(L, i))
+        if (lua_isnoneornil(sEluna->L, i))
             continue;
-        result = CHECKVAL<bool>(L, i, result);
+        result = sEluna->CHECKVAL<bool>(sEluna->L, i, result);
     }
-    ENDCALL();
+    sEluna->PlayerEventBindings.EndCall();
     return result;
 }
 
-void Eluna::OnLootItem(Player* pPlayer, Item* pItem, uint32 count, uint64 guid)
+void HookMgr::OnLootItem(Player* pPlayer, Item* pItem, uint32 count, uint64 guid)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_LOOT_ITEM, return);
-    Push(L, pPlayer);
-    Push(L, pItem);
-    Push(L, count);
-    Push(L, guid);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_LOOT_ITEM))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_LOOT_ITEM);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pItem);
+    sEluna->Push(sEluna->L, count);
+    sEluna->Push(sEluna->L, guid);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnLootMoney(Player* pPlayer, uint32 amount)
+void HookMgr::OnLootMoney(Player* pPlayer, uint32 amount)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_LOOT_MONEY, return);
-    Push(L, pPlayer);
-    Push(L, amount);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_LOOT_MONEY))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_LOOT_MONEY);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, amount);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnFirstLogin(Player* pPlayer)
+void HookMgr::OnFirstLogin(Player* pPlayer)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_FIRST_LOGIN, return);
-    Push(L, pPlayer);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_FIRST_LOGIN))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_FIRST_LOGIN);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnRepop(Player* pPlayer)
+void HookMgr::OnRepop(Player* pPlayer)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_REPOP, return);
-    Push(L, pPlayer);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_REPOP))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_REPOP);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnResurrect(Player* pPlayer)
+void HookMgr::OnResurrect(Player* pPlayer)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_RESURRECT, return);
-    Push(L, pPlayer);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_RESURRECT))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_RESURRECT);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnQuestAbandon(Player* pPlayer, uint32 questId)
+void HookMgr::OnQuestAbandon(Player* pPlayer, uint32 questId)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_QUEST_ABANDON, return);
-    Push(L, pPlayer);
-    Push(L, questId);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_QUEST_ABANDON))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_QUEST_ABANDON);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, questId);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnEquip(Player* pPlayer, Item* pItem, uint8 bag, uint8 slot)
+void HookMgr::OnEquip(Player* pPlayer, Item* pItem, uint8 bag, uint8 slot)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_EQUIP, return);
-    Push(L, pPlayer);
-    Push(L, pItem);
-    Push(L, bag);
-    Push(L, slot);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_EQUIP))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_EQUIP);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pItem);
+    sEluna->Push(sEluna->L, bag);
+    sEluna->Push(sEluna->L, slot);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-InventoryResult Eluna::OnCanUseItem(const Player* pPlayer, uint32 itemEntry)
+InventoryResult HookMgr::OnCanUseItem(const Player* pPlayer, uint32 itemEntry)
 {
     InventoryResult result = EQUIP_ERR_OK;
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_CAN_USE_ITEM, return result);
-    Push(L, pPlayer);
-    Push(L, itemEntry);
-    EVENT_EXECUTE(1);
-    FOR_RETS(i)
+    if (sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_CAN_USE_ITEM))
     {
-        if (lua_isnoneornil(L, i))
-            continue;
-        uint32 res = CHECKVAL<uint32>(L, i, EQUIP_ERR_OK);
-        if (res != EQUIP_ERR_OK)
-            result = (InventoryResult)res;
+        ELUNA_GUARD();
+        sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_CAN_USE_ITEM);
+        sEluna->Push(sEluna->L, pPlayer);
+        sEluna->Push(sEluna->L, itemEntry);
+        sEluna->PlayerEventBindings.ExecuteCall();
+        for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
+        {
+            if (lua_isnoneornil(sEluna->L, i))
+                continue;
+            uint32 res = lua_tounsigned(sEluna->L, i);
+            if (res != EQUIP_ERR_OK)
+                result = (InventoryResult)res;
+        }
+        sEluna->PlayerEventBindings.EndCall();
     }
-    ENDCALL();
     return result;
 }
-void Eluna::OnPlayerEnterCombat(Player* pPlayer, Unit* pEnemy)
+void HookMgr::OnPlayerEnterCombat(Player* pPlayer, Unit* pEnemy)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_ENTER_COMBAT, return);
-    Push(L, pPlayer);
-    Push(L, pEnemy);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_ENTER_COMBAT))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_ENTER_COMBAT);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pEnemy);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnPlayerLeaveCombat(Player* pPlayer)
+void HookMgr::OnPlayerLeaveCombat(Player* pPlayer)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_LEAVE_COMBAT, return);
-    Push(L, pPlayer);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_LEAVE_COMBAT))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_LEAVE_COMBAT);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnPVPKill(Player* pKiller, Player* pKilled)
+void HookMgr::OnPVPKill(Player* pKiller, Player* pKilled)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_KILL_PLAYER, return);
-    Push(L, pKiller);
-    Push(L, pKilled);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_KILL_PLAYER))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_KILL_PLAYER);
+    sEluna->Push(sEluna->L, pKiller);
+    sEluna->Push(sEluna->L, pKilled);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnCreatureKill(Player* pKiller, Creature* pKilled)
+void HookMgr::OnCreatureKill(Player* pKiller, Creature* pKilled)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_KILL_CREATURE, return);
-    Push(L, pKiller);
-    Push(L, pKilled);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_KILL_CREATURE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_KILL_CREATURE);
+    sEluna->Push(sEluna->L, pKiller);
+    sEluna->Push(sEluna->L, pKilled);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnPlayerKilledByCreature(Creature* pKiller, Player* pKilled)
+void HookMgr::OnPlayerKilledByCreature(Creature* pKiller, Player* pKilled)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_KILLED_BY_CREATURE, return);
-    Push(L, pKiller);
-    Push(L, pKilled);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_KILLED_BY_CREATURE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_KILLED_BY_CREATURE);
+    sEluna->Push(sEluna->L, pKiller);
+    sEluna->Push(sEluna->L, pKilled);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnLevelChanged(Player* pPlayer, uint8 oldLevel)
+void HookMgr::OnLevelChanged(Player* pPlayer, uint8 oldLevel)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_LEVEL_CHANGE, return);
-    Push(L, pPlayer);
-    Push(L, oldLevel);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_LEVEL_CHANGE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_LEVEL_CHANGE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, oldLevel);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnFreeTalentPointsChanged(Player* pPlayer, uint32 newPoints)
+void HookMgr::OnFreeTalentPointsChanged(Player* pPlayer, uint32 newPoints)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_TALENTS_CHANGE, return);
-    Push(L, pPlayer);
-    Push(L, newPoints);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_TALENTS_CHANGE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_TALENTS_CHANGE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, newPoints);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnTalentsReset(Player* pPlayer, bool noCost)
+void HookMgr::OnTalentsReset(Player* pPlayer, bool noCost)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_TALENTS_RESET, return);
-    Push(L, pPlayer);
-    Push(L, noCost);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_TALENTS_RESET))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_TALENTS_RESET);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, noCost);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnMoneyChanged(Player* pPlayer, int32& amount)
+void HookMgr::OnMoneyChanged(Player* pPlayer, int32& amount)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_MONEY_CHANGE, return);
-    Push(L, pPlayer);
-    Push(L, amount);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_MONEY_CHANGE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_MONEY_CHANGE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, amount);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnGiveXP(Player* pPlayer, uint32& amount, Unit* pVictim)
+void HookMgr::OnGiveXP(Player* pPlayer, uint32& amount, Unit* pVictim)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_GIVE_XP, return);
-    Push(L, pPlayer);
-    Push(L, amount);
-    Push(L, pVictim);
-    EVENT_EXECUTE(1);
-    FOR_RETS(i)
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_GIVE_XP))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_GIVE_XP);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, amount);
+    sEluna->Push(sEluna->L, pVictim);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
     {
-        if (lua_isnoneornil(L, i))
+        if (lua_isnoneornil(sEluna->L, i))
             continue;
-        amount = CHECKVAL<uint32>(L, i, amount);
+        amount = sEluna->CHECKVAL<uint32>(sEluna->L, i, 0);
     }
-    ENDCALL();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnReputationChange(Player* pPlayer, uint32 factionID, int32& standing, bool incremental)
+void HookMgr::OnReputationChange(Player* pPlayer, uint32 factionID, int32& standing, bool incremental)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_REPUTATION_CHANGE, return);
-    Push(L, pPlayer);
-    Push(L, factionID);
-    Push(L, standing);
-    Push(L, incremental);
-    EVENT_EXECUTE(1);
-    FOR_RETS(i)
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_REPUTATION_CHANGE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_REPUTATION_CHANGE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, factionID);
+    sEluna->Push(sEluna->L, standing);
+    sEluna->Push(sEluna->L, incremental);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
     {
-        if (lua_isnoneornil(L, i))
+        if (lua_isnoneornil(sEluna->L, i))
             continue;
-        standing = CHECKVAL<uint32>(L, i, standing);
+        standing = sEluna->CHECKVAL<uint32>(sEluna->L, i, 0);
     }
-    ENDCALL();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnDuelRequest(Player* pTarget, Player* pChallenger)
+void HookMgr::OnDuelRequest(Player* pTarget, Player* pChallenger)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_DUEL_REQUEST, return);
-    Push(L, pTarget);
-    Push(L, pChallenger);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_DUEL_REQUEST))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_DUEL_REQUEST);
+    sEluna->Push(sEluna->L, pTarget);
+    sEluna->Push(sEluna->L, pChallenger);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnDuelStart(Player* pStarter, Player* pChallenger)
+void HookMgr::OnDuelStart(Player* pStarter, Player* pChallenger)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_DUEL_START, return);
-    Push(L, pStarter);
-    Push(L, pChallenger);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_DUEL_START))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_DUEL_START);
+    sEluna->Push(sEluna->L, pStarter);
+    sEluna->Push(sEluna->L, pChallenger);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnDuelEnd(Player* pWinner, Player* pLoser, DuelCompleteType type)
+void HookMgr::OnDuelEnd(Player* pWinner, Player* pLoser, DuelCompleteType type)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_DUEL_END, return);
-    Push(L, pWinner);
-    Push(L, pLoser);
-    Push(L, type);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_DUEL_END))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_DUEL_END);
+    sEluna->Push(sEluna->L, pWinner);
+    sEluna->Push(sEluna->L, pLoser);
+    sEluna->Push(sEluna->L, type);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnEmote(Player* pPlayer, uint32 emote)
+void HookMgr::OnEmote(Player* pPlayer, uint32 emote)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_EMOTE, return);
-    Push(L, pPlayer);
-    Push(L, emote);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_EMOTE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_EMOTE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, emote);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnTextEmote(Player* pPlayer, uint32 textEmote, uint32 emoteNum, uint64 guid)
+void HookMgr::OnTextEmote(Player* pPlayer, uint32 textEmote, uint32 emoteNum, uint64 guid)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_TEXT_EMOTE, return);
-    Push(L, pPlayer);
-    Push(L, textEmote);
-    Push(L, emoteNum);
-    Push(L, guid);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_TEXT_EMOTE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_TEXT_EMOTE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, textEmote);
+    sEluna->Push(sEluna->L, emoteNum);
+    sEluna->Push(sEluna->L, guid);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnSpellCast(Player* pPlayer, Spell* pSpell, bool skipCheck)
+void HookMgr::OnSpellCast(Player* pPlayer, Spell* pSpell, bool skipCheck)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_SPELL_CAST, return);
-    Push(L, pPlayer);
-    Push(L, pSpell);
-    Push(L, skipCheck);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_SPELL_CAST))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_SPELL_CAST);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pSpell);
+    sEluna->Push(sEluna->L, skipCheck);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnLogin(Player* pPlayer)
+void HookMgr::OnLogin(Player* pPlayer)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_LOGIN, return);
-    Push(L, pPlayer);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_LOGIN))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_LOGIN);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnLogout(Player* pPlayer)
+void HookMgr::OnLogout(Player* pPlayer)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_LOGOUT, return);
-    Push(L, pPlayer);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_LOGOUT))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_LOGOUT);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnCreate(Player* pPlayer)
+void HookMgr::OnCreate(Player* pPlayer)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_CHARACTER_CREATE, return);
-    Push(L, pPlayer);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_CHARACTER_CREATE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_CHARACTER_CREATE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnDelete(uint32 guidlow)
+void HookMgr::OnDelete(uint32 guidlow)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_CHARACTER_DELETE, return);
-    Push(L, guidlow);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_CHARACTER_DELETE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_CHARACTER_DELETE);
+    sEluna->Push(sEluna->L, guidlow);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnSave(Player* pPlayer)
+void HookMgr::OnSave(Player* pPlayer)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_SAVE, return);
-    Push(L, pPlayer);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_SAVE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_SAVE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnBindToInstance(Player* pPlayer, Difficulty difficulty, uint32 mapid, bool permanent)
+void HookMgr::OnBindToInstance(Player* pPlayer, Difficulty difficulty, uint32 mapid, bool permanent)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_BIND_TO_INSTANCE, return);
-    Push(L, pPlayer);
-    Push(L, difficulty);
-    Push(L, mapid);
-    Push(L, permanent);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_BIND_TO_INSTANCE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_BIND_TO_INSTANCE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, difficulty);
+    sEluna->Push(sEluna->L, mapid);
+    sEluna->Push(sEluna->L, permanent);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnUpdateZone(Player* pPlayer, uint32 newZone, uint32 newArea)
+void HookMgr::OnUpdateZone(Player* pPlayer, uint32 newZone, uint32 newArea)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_UPDATE_ZONE, return);
-    Push(L, pPlayer);
-    Push(L, newZone);
-    Push(L, newArea);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_UPDATE_ZONE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_UPDATE_ZONE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, newZone);
+    sEluna->Push(sEluna->L, newArea);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-void Eluna::OnMapChanged(Player* player)
+void HookMgr::OnMapChanged(Player* player)
 {
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_MAP_CHANGE, return);
-    Push(L, player);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_MAP_CHANGE))
+        return;
+    ELUNA_GUARD();
+    sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_MAP_CHANGE);
+    sEluna->Push(sEluna->L, player);
+    sEluna->PlayerEventBindings.ExecuteCall();
+    sEluna->PlayerEventBindings.EndCall();
 }
 
-bool Eluna::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg)
+bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg)
 {
     if (lang == LANG_ADDON && OnAddonMessage(pPlayer, type, msg, NULL, NULL, NULL, NULL))
         return true;
     bool result = true;
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_CHAT, return result);
-    Push(L, pPlayer);
-    Push(L, msg);
-    Push(L, type);
-    Push(L, lang);
-    EVENT_EXECUTE(2);
-    FOR_RETS(i)
+    if (sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_CHAT))
     {
-        if (lua_isnoneornil(L, i))
-            continue;
-        if (const char* c_str = CHECKVAL<const char*>(L, i, NULL))
-            msg = std::string(c_str);
-        else if (!CHECKVAL<bool>(L, i, true))
+        ELUNA_GUARD();
+        sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_CHAT);
+        sEluna->Push(sEluna->L, pPlayer);
+        sEluna->Push(sEluna->L, msg);
+        sEluna->Push(sEluna->L, type);
+        sEluna->Push(sEluna->L, lang);
+        sEluna->PlayerEventBindings.ExecuteCall();
+        for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
         {
-            result = false;
-            break;
+            if (lua_isnoneornil(sEluna->L, i))
+                continue;
+            if (const char* c_str = sEluna->CHECKVAL<const char*>(sEluna->L, i, NULL))
+                msg = std::string(c_str);
+            else if (!sEluna->CHECKVAL<bool>(sEluna->L, i, true))
+            {
+                result = false;
+                break;
+            }
         }
+        sEluna->PlayerEventBindings.EndCall();
     }
-    ENDCALL();
     return result;
 }
 
-bool Eluna::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg, Group* pGroup)
+bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg, Group* pGroup)
 {
     if (lang == LANG_ADDON && OnAddonMessage(pPlayer, type, msg, NULL, NULL, pGroup, NULL))
         return true;
     bool result = true;
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_GROUP_CHAT, return result);
-    Push(L, pPlayer);
-    Push(L, msg);
-    Push(L, type);
-    Push(L, lang);
-    Push(L, pGroup);
-    EVENT_EXECUTE(2);
-    FOR_RETS(i)
+    if (sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_GROUP_CHAT))
     {
-        if (lua_isnoneornil(L, i))
-            continue;
-        if (const char* c_str = CHECKVAL<const char*>(L, i, NULL))
-            msg = std::string(c_str);
-        else if (!CHECKVAL<bool>(L, i, true))
+        ELUNA_GUARD();
+        sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_GROUP_CHAT);
+        sEluna->Push(sEluna->L, pPlayer);
+        sEluna->Push(sEluna->L, msg);
+        sEluna->Push(sEluna->L, type);
+        sEluna->Push(sEluna->L, lang);
+        sEluna->Push(sEluna->L, pGroup);
+        sEluna->PlayerEventBindings.ExecuteCall();
+        for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
         {
-            result = false;
-            break;
+            if (lua_isnoneornil(sEluna->L, i))
+                continue;
+            if (const char* c_str = sEluna->CHECKVAL<const char*>(sEluna->L, i, NULL))
+                msg = std::string(c_str);
+            else if (!sEluna->CHECKVAL<bool>(sEluna->L, i, true))
+            {
+                result = false;
+                break;
+            }
         }
+        sEluna->PlayerEventBindings.EndCall();
     }
-    ENDCALL();
     return result;
 }
 
-bool Eluna::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg, Guild* pGuild)
+bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg, Guild* pGuild)
 {
     if (lang == LANG_ADDON && OnAddonMessage(pPlayer, type, msg, NULL, pGuild, NULL, NULL))
         return true;
     bool result = true;
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_GUILD_CHAT, return result);
-    Push(L, pPlayer);
-    Push(L, msg);
-    Push(L, type);
-    Push(L, lang);
-    Push(L, pGuild);
-    EVENT_EXECUTE(2);
-    FOR_RETS(i)
+    if (sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_GUILD_CHAT))
     {
-        if (lua_isnoneornil(L, i))
-            continue;
-        if (const char* c_str = CHECKVAL<const char*>(L, i, NULL))
-            msg = std::string(c_str);
-        else if (!CHECKVAL<bool>(L, i, true))
+        ELUNA_GUARD();
+        sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_GUILD_CHAT);
+        sEluna->Push(sEluna->L, pPlayer);
+        sEluna->Push(sEluna->L, msg);
+        sEluna->Push(sEluna->L, type);
+        sEluna->Push(sEluna->L, lang);
+        sEluna->Push(sEluna->L, pGuild);
+        sEluna->PlayerEventBindings.ExecuteCall();
+        for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
         {
-            result = false;
-            break;
+            if (lua_isnoneornil(sEluna->L, i))
+                continue;
+            if (const char* c_str = sEluna->CHECKVAL<const char*>(sEluna->L, i, NULL))
+                msg = std::string(c_str);
+            else if (!sEluna->CHECKVAL<bool>(sEluna->L, i, true))
+            {
+                result = false;
+                break;
+            }
         }
+        sEluna->PlayerEventBindings.EndCall();
     }
-    ENDCALL();
     return result;
 }
 
-bool Eluna::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg, Channel* pChannel)
+bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg, Channel* pChannel)
 {
     if (lang == LANG_ADDON && OnAddonMessage(pPlayer, type, msg, NULL, NULL, NULL, pChannel))
         return true;
     bool result = true;
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_CHANNEL_CHAT, return result);
-    Push(L, pPlayer);
-    Push(L, msg);
-    Push(L, type);
-    Push(L, lang);
-    Push(L, pChannel->GetChannelId());
-    EVENT_EXECUTE(2);
-    FOR_RETS(i)
+    if (sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_CHANNEL_CHAT))
     {
-        if (lua_isnoneornil(L, i))
-            continue;
-        if (const char* c_str = CHECKVAL<const char*>(L, i, NULL))
-            msg = std::string(c_str);
-        else if (!CHECKVAL<bool>(L, i, true))
+        ELUNA_GUARD();
+        sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_CHANNEL_CHAT);
+        sEluna->Push(sEluna->L, pPlayer);
+        sEluna->Push(sEluna->L, msg);
+        sEluna->Push(sEluna->L, type);
+        sEluna->Push(sEluna->L, lang);
+        sEluna->Push(sEluna->L, pChannel->GetChannelId());
+        sEluna->PlayerEventBindings.ExecuteCall();
+        for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
         {
-            result = false;
-            break;
+            if (lua_isnoneornil(sEluna->L, i))
+                continue;
+            if (const char* c_str = sEluna->CHECKVAL<const char*>(sEluna->L, i, NULL))
+                msg = std::string(c_str);
+            else if (!sEluna->CHECKVAL<bool>(sEluna->L, i, true))
+            {
+                result = false;
+                break;
+            }
         }
+        sEluna->PlayerEventBindings.EndCall();
     }
-    ENDCALL();
     return result;
 }
 
-bool Eluna::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg, Player* pReceiver)
+bool HookMgr::OnChat(Player* pPlayer, uint32 type, uint32 lang, std::string& msg, Player* pReceiver)
 {
     if (lang == LANG_ADDON && OnAddonMessage(pPlayer, type, msg, pReceiver, NULL, NULL, NULL))
         return true;
     bool result = true;
-    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_WHISPER, return result);
-    Push(L, pPlayer);
-    Push(L, msg);
-    Push(L, type);
-    Push(L, lang);
-    Push(L, pReceiver);
-    EVENT_EXECUTE(2);
-    FOR_RETS(i)
+    if (sEluna->PlayerEventBindings.HasEvents(PLAYER_EVENT_ON_WHISPER))
     {
-        if (lua_isnoneornil(L, i))
-            continue;
-        if (const char* c_str = CHECKVAL<const char*>(L, i, NULL))
-            msg = std::string(c_str);
-        else if (!CHECKVAL<bool>(L, i, true))
+        ELUNA_GUARD();
+        sEluna->PlayerEventBindings.BeginCall(PLAYER_EVENT_ON_WHISPER);
+        sEluna->Push(sEluna->L, pPlayer);
+        sEluna->Push(sEluna->L, msg);
+        sEluna->Push(sEluna->L, type);
+        sEluna->Push(sEluna->L, lang);
+        sEluna->Push(sEluna->L, pReceiver);
+        sEluna->PlayerEventBindings.ExecuteCall();
+        for (int i = 1; i <= lua_gettop(sEluna->L); ++i)
         {
-            result = false;
-            break;
+            if (lua_isnoneornil(sEluna->L, i))
+                continue;
+            if (const char* c_str = sEluna->CHECKVAL<const char*>(sEluna->L, i, NULL))
+                msg = std::string(c_str);
+            else if (!sEluna->CHECKVAL<bool>(sEluna->L, i, true))
+            {
+                result = false;
+                break;
+            }
         }
+        sEluna->PlayerEventBindings.EndCall();
     }
-    ENDCALL();
     return result;
 }
 
 #ifndef CLASSIC
 #ifndef TBC
 // Vehicle
-void Eluna::OnInstall(Vehicle* vehicle)
+void HookMgr::OnInstall(Vehicle* vehicle)
 {
-    EVENT_BEGIN(VehicleEventBindings, VEHICLE_EVENT_ON_INSTALL, return);
-    Push(L, vehicle);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->VehicleEventBindings.HasEvents(VEHICLE_EVENT_ON_INSTALL))
+        return;
+    ELUNA_GUARD();
+    sEluna->VehicleEventBindings.BeginCall(VEHICLE_EVENT_ON_INSTALL);
+    sEluna->Push(sEluna->L, vehicle);
+    sEluna->VehicleEventBindings.ExecuteCall();
+    sEluna->VehicleEventBindings.EndCall();
 }
 
-void Eluna::OnUninstall(Vehicle* vehicle)
+void HookMgr::OnUninstall(Vehicle* vehicle)
 {
-    EVENT_BEGIN(VehicleEventBindings, VEHICLE_EVENT_ON_UNINSTALL, return);
-    Push(L, vehicle);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->VehicleEventBindings.HasEvents(VEHICLE_EVENT_ON_UNINSTALL))
+        return;
+    ELUNA_GUARD();
+    sEluna->VehicleEventBindings.BeginCall(VEHICLE_EVENT_ON_UNINSTALL);
+    sEluna->Push(sEluna->L, vehicle);
+    sEluna->VehicleEventBindings.ExecuteCall();
+    sEluna->VehicleEventBindings.EndCall();
 }
 
-void Eluna::OnInstallAccessory(Vehicle* vehicle, Creature* accessory)
+void HookMgr::OnInstallAccessory(Vehicle* vehicle, Creature* accessory)
 {
-    EVENT_BEGIN(VehicleEventBindings, VEHICLE_EVENT_ON_INSTALL_ACCESSORY, return);
-    Push(L, vehicle);
-    Push(L, accessory);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->VehicleEventBindings.HasEvents(VEHICLE_EVENT_ON_INSTALL_ACCESSORY))
+        return;
+    ELUNA_GUARD();
+    sEluna->VehicleEventBindings.BeginCall(VEHICLE_EVENT_ON_INSTALL_ACCESSORY);
+    sEluna->Push(sEluna->L, vehicle);
+    sEluna->Push(sEluna->L, accessory);
+    sEluna->VehicleEventBindings.ExecuteCall();
+    sEluna->VehicleEventBindings.EndCall();
 }
 
-void Eluna::OnAddPassenger(Vehicle* vehicle, Unit* passenger, int8 seatId)
+void HookMgr::OnAddPassenger(Vehicle* vehicle, Unit* passenger, int8 seatId)
 {
-    EVENT_BEGIN(VehicleEventBindings, VEHICLE_EVENT_ON_ADD_PASSENGER, return);
-    Push(L, vehicle);
-    Push(L, passenger);
-    Push(L, seatId);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->VehicleEventBindings.HasEvents(VEHICLE_EVENT_ON_ADD_PASSENGER))
+        return;
+    ELUNA_GUARD();
+    sEluna->VehicleEventBindings.BeginCall(VEHICLE_EVENT_ON_ADD_PASSENGER);
+    sEluna->Push(sEluna->L, vehicle);
+    sEluna->Push(sEluna->L, passenger);
+    sEluna->Push(sEluna->L, seatId);
+    sEluna->VehicleEventBindings.ExecuteCall();
+    sEluna->VehicleEventBindings.EndCall();
 }
 
-void Eluna::OnRemovePassenger(Vehicle* vehicle, Unit* passenger)
+void HookMgr::OnRemovePassenger(Vehicle* vehicle, Unit* passenger)
 {
-    EVENT_BEGIN(VehicleEventBindings, VEHICLE_EVENT_ON_REMOVE_PASSENGER, return);
-    Push(L, vehicle);
-    Push(L, passenger);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->VehicleEventBindings.HasEvents(VEHICLE_EVENT_ON_REMOVE_PASSENGER))
+        return;
+    ELUNA_GUARD();
+    sEluna->VehicleEventBindings.BeginCall(VEHICLE_EVENT_ON_REMOVE_PASSENGER);
+    sEluna->Push(sEluna->L, vehicle);
+    sEluna->Push(sEluna->L, passenger);
+    sEluna->VehicleEventBindings.ExecuteCall();
+    sEluna->VehicleEventBindings.EndCall();
 }
 #endif
 #endif
 
-void Eluna::OnAddMember(Guild* guild, Player* player, uint32 plRank)
+void HookMgr::OnAddMember(Guild* guild, Player* player, uint32 plRank)
 {
-    EVENT_BEGIN(GuildEventBindings, GUILD_EVENT_ON_ADD_MEMBER, return);
-    Push(L, guild);
-    Push(L, player);
-    Push(L, plRank);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GuildEventBindings.HasEvents(GUILD_EVENT_ON_ADD_MEMBER))
+        return;
+    ELUNA_GUARD();
+    sEluna->GuildEventBindings.BeginCall(GUILD_EVENT_ON_ADD_MEMBER);
+    sEluna->Push(sEluna->L, guild);
+    sEluna->Push(sEluna->L, player);
+    sEluna->Push(sEluna->L, plRank);
+    sEluna->GuildEventBindings.ExecuteCall();
+    sEluna->GuildEventBindings.EndCall();
 }
 
-void Eluna::OnRemoveMember(Guild* guild, Player* player, bool isDisbanding)
+void HookMgr::OnRemoveMember(Guild* guild, Player* player, bool isDisbanding)
 {
-    EVENT_BEGIN(GuildEventBindings, GUILD_EVENT_ON_REMOVE_MEMBER, return);
-    Push(L, guild);
-    Push(L, player);
-    Push(L, isDisbanding);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GuildEventBindings.HasEvents(GUILD_EVENT_ON_REMOVE_MEMBER))
+        return;
+    ELUNA_GUARD();
+    sEluna->GuildEventBindings.BeginCall(GUILD_EVENT_ON_REMOVE_MEMBER);
+    sEluna->Push(sEluna->L, guild);
+    sEluna->Push(sEluna->L, player);
+    sEluna->Push(sEluna->L, isDisbanding);
+    sEluna->GuildEventBindings.ExecuteCall();
+    sEluna->GuildEventBindings.EndCall();
 }
 
-void Eluna::OnMOTDChanged(Guild* guild, const std::string& newMotd)
+void HookMgr::OnMOTDChanged(Guild* guild, const std::string& newMotd)
 {
-    EVENT_BEGIN(GuildEventBindings, GUILD_EVENT_ON_MOTD_CHANGE, return);
-    Push(L, guild);
-    Push(L, newMotd);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GuildEventBindings.HasEvents(GUILD_EVENT_ON_MOTD_CHANGE))
+        return;
+    ELUNA_GUARD();
+    sEluna->GuildEventBindings.BeginCall(GUILD_EVENT_ON_MOTD_CHANGE);
+    sEluna->Push(sEluna->L, guild);
+    sEluna->Push(sEluna->L, newMotd);
+    sEluna->GuildEventBindings.ExecuteCall();
+    sEluna->GuildEventBindings.EndCall();
 }
 
-void Eluna::OnInfoChanged(Guild* guild, const std::string& newInfo)
+void HookMgr::OnInfoChanged(Guild* guild, const std::string& newInfo)
 {
-    EVENT_BEGIN(GuildEventBindings, GUILD_EVENT_ON_INFO_CHANGE, return);
-    Push(L, guild);
-    Push(L, newInfo);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GuildEventBindings.HasEvents(GUILD_EVENT_ON_INFO_CHANGE))
+        return;
+    ELUNA_GUARD();
+    sEluna->GuildEventBindings.BeginCall(GUILD_EVENT_ON_INFO_CHANGE);
+    sEluna->Push(sEluna->L, guild);
+    sEluna->Push(sEluna->L, newInfo);
+    sEluna->GuildEventBindings.ExecuteCall();
+    sEluna->GuildEventBindings.EndCall();
 }
 
-void Eluna::OnCreate(Guild* guild, Player* leader, const std::string& name)
+void HookMgr::OnCreate(Guild* guild, Player* leader, const std::string& name)
 {
-    EVENT_BEGIN(GuildEventBindings, GUILD_EVENT_ON_CREATE, return);
-    Push(L, guild);
-    Push(L, leader);
-    Push(L, name);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GuildEventBindings.HasEvents(GUILD_EVENT_ON_CREATE))
+        return;
+    ELUNA_GUARD();
+    sEluna->GuildEventBindings.BeginCall(GUILD_EVENT_ON_CREATE);
+    sEluna->Push(sEluna->L, guild);
+    sEluna->Push(sEluna->L, leader);
+    sEluna->Push(sEluna->L, name);
+    sEluna->GuildEventBindings.ExecuteCall();
+    sEluna->GuildEventBindings.EndCall();
 }
 
-void Eluna::OnDisband(Guild* guild)
+void HookMgr::OnDisband(Guild* guild)
 {
-    EVENT_BEGIN(GuildEventBindings, GUILD_EVENT_ON_DISBAND, return);
-    Push(L, guild);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GuildEventBindings.HasEvents(GUILD_EVENT_ON_DISBAND))
+        return;
+    ELUNA_GUARD();
+    sEluna->GuildEventBindings.BeginCall(GUILD_EVENT_ON_DISBAND);
+    sEluna->Push(sEluna->L, guild);
+    sEluna->GuildEventBindings.ExecuteCall();
+    sEluna->GuildEventBindings.EndCall();
 }
 
-void Eluna::OnMemberWitdrawMoney(Guild* guild, Player* player, uint32 &amount, bool isRepair) // isRepair not a part of Mangos, implement?
+void HookMgr::OnMemberWitdrawMoney(Guild* guild, Player* player, uint32 &amount, bool isRepair) // isRepair not a part of Mangos, implement?
 {
-    EVENT_BEGIN(GuildEventBindings, GUILD_EVENT_ON_MONEY_WITHDRAW, return);
-    Push(L, guild);
-    Push(L, player);
-    Push(L, amount);
-    Push(L, isRepair); // isRepair not a part of Mangos, implement?
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GuildEventBindings.HasEvents(GUILD_EVENT_ON_MONEY_WITHDRAW))
+        return;
+    ELUNA_GUARD();
+    sEluna->GuildEventBindings.BeginCall(GUILD_EVENT_ON_MONEY_WITHDRAW);
+    sEluna->Push(sEluna->L, guild);
+    sEluna->Push(sEluna->L, player);
+    sEluna->Push(sEluna->L, amount);
+    sEluna->Push(sEluna->L, isRepair); // isRepair not a part of Mangos, implement?
+    sEluna->GuildEventBindings.ExecuteCall();
+    sEluna->GuildEventBindings.EndCall();
 }
 
-void Eluna::OnMemberDepositMoney(Guild* guild, Player* player, uint32 &amount)
+void HookMgr::OnMemberDepositMoney(Guild* guild, Player* player, uint32 &amount)
 {
-    EVENT_BEGIN(GuildEventBindings, GUILD_EVENT_ON_MONEY_DEPOSIT, return);
-    Push(L, guild);
-    Push(L, player);
-    Push(L, amount);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GuildEventBindings.HasEvents(GUILD_EVENT_ON_MONEY_DEPOSIT))
+        return;
+    ELUNA_GUARD();
+    sEluna->GuildEventBindings.BeginCall(GUILD_EVENT_ON_MONEY_DEPOSIT);
+    sEluna->Push(sEluna->L, guild);
+    sEluna->Push(sEluna->L, player);
+    sEluna->Push(sEluna->L, amount);
+    sEluna->GuildEventBindings.ExecuteCall();
+    sEluna->GuildEventBindings.EndCall();
 }
 
-void Eluna::OnItemMove(Guild* guild, Player* player, Item* pItem, bool isSrcBank, uint8 srcContainer, uint8 srcSlotId,
-    bool isDestBank, uint8 destContainer, uint8 destSlotId)
+void HookMgr::OnItemMove(Guild* guild, Player* player, Item* pItem, bool isSrcBank, uint8 srcContainer, uint8 srcSlotId,
+                         bool isDestBank, uint8 destContainer, uint8 destSlotId)
 {
-    EVENT_BEGIN(GuildEventBindings, GUILD_EVENT_ON_ITEM_MOVE, return);
-    Push(L, guild);
-    Push(L, player);
-    Push(L, pItem);
-    Push(L, isSrcBank);
-    Push(L, srcContainer);
-    Push(L, srcSlotId);
-    Push(L, isDestBank);
-    Push(L, destContainer);
-    Push(L, destSlotId);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GuildEventBindings.HasEvents(GUILD_EVENT_ON_ITEM_MOVE))
+        return;
+    ELUNA_GUARD();
+    sEluna->GuildEventBindings.BeginCall(GUILD_EVENT_ON_ITEM_MOVE);
+    sEluna->Push(sEluna->L, guild);
+    sEluna->Push(sEluna->L, player);
+    sEluna->Push(sEluna->L, pItem);
+    sEluna->Push(sEluna->L, isSrcBank);
+    sEluna->Push(sEluna->L, srcContainer);
+    sEluna->Push(sEluna->L, srcSlotId);
+    sEluna->Push(sEluna->L, isDestBank);
+    sEluna->Push(sEluna->L, destContainer);
+    sEluna->Push(sEluna->L, destSlotId);
+    sEluna->GuildEventBindings.ExecuteCall();
+    sEluna->GuildEventBindings.EndCall();
 }
 
-void Eluna::OnEvent(Guild* guild, uint8 eventType, uint32 playerGuid1, uint32 playerGuid2, uint8 newRank)
+void HookMgr::OnEvent(Guild* guild, uint8 eventType, uint32 playerGuid1, uint32 playerGuid2, uint8 newRank)
 {
-    EVENT_BEGIN(GuildEventBindings, GUILD_EVENT_ON_EVENT, return);
-    Push(L, guild);
-    Push(L, eventType);
-    Push(L, playerGuid1);
-    Push(L, playerGuid2);
-    Push(L, newRank);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GuildEventBindings.HasEvents(GUILD_EVENT_ON_EVENT))
+        return;
+    ELUNA_GUARD();
+    sEluna->GuildEventBindings.BeginCall(GUILD_EVENT_ON_EVENT);
+    sEluna->Push(sEluna->L, guild);
+    sEluna->Push(sEluna->L, eventType);
+    sEluna->Push(sEluna->L, playerGuid1);
+    sEluna->Push(sEluna->L, playerGuid2);
+    sEluna->Push(sEluna->L, newRank);
+    sEluna->GuildEventBindings.ExecuteCall();
+    sEluna->GuildEventBindings.EndCall();
 }
 
-void Eluna::OnBankEvent(Guild* guild, uint8 eventType, uint8 tabId, uint32 playerGuid, uint32 itemOrMoney, uint16 itemStackCount, uint8 destTabId)
+void HookMgr::OnBankEvent(Guild* guild, uint8 eventType, uint8 tabId, uint32 playerGuid, uint32 itemOrMoney, uint16 itemStackCount, uint8 destTabId)
 {
-    EVENT_BEGIN(GuildEventBindings, GUILD_EVENT_ON_BANK_EVENT, return);
-    Push(L, guild);
-    Push(L, eventType);
-    Push(L, tabId);
-    Push(L, playerGuid);
-    Push(L, itemOrMoney);
-    Push(L, itemStackCount);
-    Push(L, destTabId);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GuildEventBindings.HasEvents(GUILD_EVENT_ON_BANK_EVENT))
+        return;
+    ELUNA_GUARD();
+    sEluna->GuildEventBindings.BeginCall(GUILD_EVENT_ON_BANK_EVENT);
+    sEluna->Push(sEluna->L, guild);
+    sEluna->Push(sEluna->L, eventType);
+    sEluna->Push(sEluna->L, tabId);
+    sEluna->Push(sEluna->L, playerGuid);
+    sEluna->Push(sEluna->L, itemOrMoney);
+    sEluna->Push(sEluna->L, itemStackCount);
+    sEluna->Push(sEluna->L, destTabId);
+    sEluna->GuildEventBindings.ExecuteCall();
+    sEluna->GuildEventBindings.EndCall();
 }
 // Group
-void Eluna::OnAddMember(Group* group, uint64 guid)
+void HookMgr::OnAddMember(Group* group, uint64 guid)
 {
-    EVENT_BEGIN(GroupEventBindings, GROUP_EVENT_ON_MEMBER_ADD, return);
-    Push(L, group);
-    Push(L, guid);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GroupEventBindings.HasEvents(GROUP_EVENT_ON_MEMBER_ADD))
+        return;
+    ELUNA_GUARD();
+    sEluna->GroupEventBindings.BeginCall(GROUP_EVENT_ON_MEMBER_ADD);
+    sEluna->Push(sEluna->L, group);
+    sEluna->Push(sEluna->L, guid);
+    sEluna->GroupEventBindings.ExecuteCall();
+    sEluna->GroupEventBindings.EndCall();
 }
 
-void Eluna::OnInviteMember(Group* group, uint64 guid)
+void HookMgr::OnInviteMember(Group* group, uint64 guid)
 {
-    EVENT_BEGIN(GroupEventBindings, GROUP_EVENT_ON_MEMBER_INVITE, return);
-    Push(L, group);
-    Push(L, guid);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GroupEventBindings.HasEvents(GROUP_EVENT_ON_MEMBER_INVITE))
+        return;
+    ELUNA_GUARD();
+    sEluna->GroupEventBindings.BeginCall(GROUP_EVENT_ON_MEMBER_INVITE);
+    sEluna->Push(sEluna->L, group);
+    sEluna->Push(sEluna->L, guid);
+    sEluna->GroupEventBindings.ExecuteCall();
+    sEluna->GroupEventBindings.EndCall();
 }
 
-void Eluna::OnRemoveMember(Group* group, uint64 guid, uint8 method)
+void HookMgr::OnRemoveMember(Group* group, uint64 guid, uint8 method)
 {
-    EVENT_BEGIN(GroupEventBindings, GROUP_EVENT_ON_MEMBER_REMOVE, return);
-    Push(L, group);
-    Push(L, guid);
-    Push(L, method);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GroupEventBindings.HasEvents(GROUP_EVENT_ON_MEMBER_REMOVE))
+        return;
+    ELUNA_GUARD();
+    sEluna->GroupEventBindings.BeginCall(GROUP_EVENT_ON_MEMBER_REMOVE);
+    sEluna->Push(sEluna->L, group);
+    sEluna->Push(sEluna->L, guid);
+    sEluna->Push(sEluna->L, method);
+    sEluna->GroupEventBindings.ExecuteCall();
+    sEluna->GroupEventBindings.EndCall();
 }
 
-void Eluna::OnChangeLeader(Group* group, uint64 newLeaderGuid, uint64 oldLeaderGuid)
+void HookMgr::OnChangeLeader(Group* group, uint64 newLeaderGuid, uint64 oldLeaderGuid)
 {
-    EVENT_BEGIN(GroupEventBindings, GROUP_EVENT_ON_LEADER_CHANGE, return);
-    Push(L, group);
-    Push(L, newLeaderGuid);
-    Push(L, oldLeaderGuid);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GroupEventBindings.HasEvents(GROUP_EVENT_ON_LEADER_CHANGE))
+        return;
+    ELUNA_GUARD();
+    sEluna->GroupEventBindings.BeginCall(GROUP_EVENT_ON_LEADER_CHANGE);
+    sEluna->Push(sEluna->L, group);
+    sEluna->Push(sEluna->L, newLeaderGuid);
+    sEluna->Push(sEluna->L, oldLeaderGuid);
+    sEluna->GroupEventBindings.ExecuteCall();
+    sEluna->GroupEventBindings.EndCall();
 }
 
-void Eluna::OnDisband(Group* group)
+void HookMgr::OnDisband(Group* group)
 {
-    EVENT_BEGIN(GroupEventBindings, GROUP_EVENT_ON_DISBAND, return);
-    Push(L, group);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GroupEventBindings.HasEvents(GROUP_EVENT_ON_DISBAND))
+        return;
+    ELUNA_GUARD();
+    sEluna->GroupEventBindings.BeginCall(GROUP_EVENT_ON_DISBAND);
+    sEluna->Push(sEluna->L, group);
+    sEluna->GroupEventBindings.ExecuteCall();
+    sEluna->GroupEventBindings.EndCall();
 }
 
-void Eluna::OnCreate(Group* group, uint64 leaderGuid, GroupType groupType)
+void HookMgr::OnCreate(Group* group, uint64 leaderGuid, GroupType groupType)
 {
-    EVENT_BEGIN(GroupEventBindings, GROUP_EVENT_ON_CREATE, return);
-    Push(L, group);
-    Push(L, leaderGuid);
-    Push(L, groupType);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->GroupEventBindings.HasEvents(GROUP_EVENT_ON_CREATE))
+        return;
+    ELUNA_GUARD();
+    sEluna->GroupEventBindings.BeginCall(GROUP_EVENT_ON_CREATE);
+    sEluna->Push(sEluna->L, group);
+    sEluna->Push(sEluna->L, leaderGuid);
+    sEluna->Push(sEluna->L, groupType);
+    sEluna->GroupEventBindings.ExecuteCall();
+    sEluna->GroupEventBindings.EndCall();
 }
 
 /* Map */
-void Eluna::OnCreate(Map* map)
+void HookMgr::OnCreate(Map* map)
 {
-    EVENT_BEGIN(ServerEventBindings, MAP_EVENT_ON_CREATE, return);
-    Push(L, map);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->ServerEventBindings.HasEvents(MAP_EVENT_ON_CREATE))
+        return;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(MAP_EVENT_ON_CREATE);
+    sEluna->Push(sEluna->L, map);
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
 }
-void Eluna::OnDestroy(Map* map)
+void HookMgr::OnDestroy(Map* map)
 {
-    EVENT_BEGIN(ServerEventBindings, MAP_EVENT_ON_DESTROY, return);
-    Push(L, map);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->ServerEventBindings.HasEvents(MAP_EVENT_ON_DESTROY))
+        return;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(MAP_EVENT_ON_DESTROY);
+    sEluna->Push(sEluna->L, map);
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
 }
-void Eluna::OnPlayerEnter(Map* map, Player* player)
+void HookMgr::OnPlayerEnter(Map* map, Player* player)
 {
-    EVENT_BEGIN(ServerEventBindings, MAP_EVENT_ON_PLAYER_ENTER, return);
-    Push(L, map);
-    Push(L, player);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->ServerEventBindings.HasEvents(MAP_EVENT_ON_PLAYER_ENTER))
+        return;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(MAP_EVENT_ON_PLAYER_ENTER);
+    sEluna->Push(sEluna->L, map);
+    sEluna->Push(sEluna->L, player);
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
 }
-void Eluna::OnPlayerLeave(Map* map, Player* player)
+void HookMgr::OnPlayerLeave(Map* map, Player* player)
 {
-    EVENT_BEGIN(ServerEventBindings, MAP_EVENT_ON_PLAYER_LEAVE, return);
-    Push(L, map);
-    Push(L, player);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->ServerEventBindings.HasEvents(MAP_EVENT_ON_PLAYER_LEAVE))
+        return;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(MAP_EVENT_ON_PLAYER_LEAVE);
+    sEluna->Push(sEluna->L, map);
+    sEluna->Push(sEluna->L, player);
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
 }
-void Eluna::OnUpdate(Map* map, uint32 diff)
+void HookMgr::OnUpdate(Map* map, uint32 diff)
 {
-    EVENT_BEGIN(ServerEventBindings, MAP_EVENT_ON_UPDATE, return);
-    Push(L, map);
-    Push(L, diff);
-    EVENT_EXECUTE(0);
-    ENDCALL();
+    if (!sEluna->ServerEventBindings.HasEvents(MAP_EVENT_ON_UPDATE))
+        return;
+    ELUNA_GUARD();
+    sEluna->ServerEventBindings.BeginCall(MAP_EVENT_ON_UPDATE);
+    sEluna->Push(sEluna->L, map);
+    sEluna->Push(sEluna->L, diff);
+    sEluna->ServerEventBindings.ExecuteCall();
+    sEluna->ServerEventBindings.EndCall();
 }
 
 // creature
-bool Eluna::OnDummyEffect(Unit* pCaster, uint32 spellId, SpellEffIndex effIndex, Creature* pTarget)
+bool HookMgr::OnDummyEffect(Unit* pCaster, uint32 spellId, SpellEffIndex effIndex, Creature* pTarget)
 {
-    ENTRY_BEGIN(CreatureEventBindings, pTarget->GetEntry(), CREATURE_EVENT_ON_DUMMY_EFFECT, return false);
-    Push(L, pCaster);
-    Push(L, spellId);
-    Push(L, effIndex);
-    Push(L, pTarget);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->CreatureEventBindings.GetBind(pTarget->GetEntry(), CREATURE_EVENT_ON_DUMMY_EFFECT);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, CREATURE_EVENT_ON_DUMMY_EFFECT);
+    sEluna->Push(sEluna->L, pCaster);
+    sEluna->Push(sEluna->L, spellId);
+    sEluna->Push(sEluna->L, effIndex);
+    sEluna->Push(sEluna->L, pTarget);
+    sEluna->ExecuteCall(5, 0);
     return true;
 }
 
-bool Eluna::OnGossipHello(Player* pPlayer, Creature* pCreature)
+bool HookMgr::OnGossipHello(Player* pPlayer, Creature* pCreature)
 {
-    ENTRY_BEGIN(CreatureEventBindings, pCreature->GetEntry(), GOSSIP_EVENT_ON_HELLO, return false);
-    Push(L, pPlayer);
-    Push(L, pCreature);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
-    return true;
-}
-
-bool Eluna::OnGossipSelect(Player* pPlayer, Creature* pCreature, uint32 sender, uint32 action)
-{
-    ENTRY_BEGIN(CreatureEventBindings, pCreature->GetEntry(), GOSSIP_EVENT_ON_SELECT, return false);
+    int bind = sEluna->CreatureGossipBindings.GetBind(pCreature->GetEntry(), GOSSIP_EVENT_ON_HELLO);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
     pPlayer->PlayerTalkClass->ClearMenus();
-    Push(L, pPlayer);
-    Push(L, pCreature);
-    Push(L, sender);
-    Push(L, action);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GOSSIP_EVENT_ON_HELLO);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pCreature);
+    sEluna->ExecuteCall(3, 0);
     return true;
 }
 
-bool Eluna::OnGossipSelectCode(Player* pPlayer, Creature* pCreature, uint32 sender, uint32 action, const char* code)
+bool HookMgr::OnGossipSelect(Player* pPlayer, Creature* pCreature, uint32 sender, uint32 action)
 {
-    ENTRY_BEGIN(CreatureEventBindings, pCreature->GetEntry(), GOSSIP_EVENT_ON_SELECT, return false);
+    int bind = sEluna->CreatureGossipBindings.GetBind(pCreature->GetEntry(), GOSSIP_EVENT_ON_SELECT);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
     pPlayer->PlayerTalkClass->ClearMenus();
-    Push(L, pPlayer);
-    Push(L, pCreature);
-    Push(L, sender);
-    Push(L, action);
-    Push(L, code);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GOSSIP_EVENT_ON_SELECT);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pCreature);
+    sEluna->Push(sEluna->L, sender);
+    sEluna->Push(sEluna->L, action);
+    sEluna->ExecuteCall(5, 0);
     return true;
 }
 
-bool Eluna::OnQuestAccept(Player* pPlayer, Creature* pCreature, Quest const* pQuest)
+bool HookMgr::OnGossipSelectCode(Player* pPlayer, Creature* pCreature, uint32 sender, uint32 action, const char* code)
 {
-    ENTRY_BEGIN(CreatureEventBindings, pCreature->GetEntry(), CREATURE_EVENT_ON_QUEST_ACCEPT, return false);
-    Push(L, pPlayer);
-    Push(L, pCreature);
-    Push(L, pQuest);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->CreatureGossipBindings.GetBind(pCreature->GetEntry(), GOSSIP_EVENT_ON_SELECT);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    pPlayer->PlayerTalkClass->ClearMenus();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GOSSIP_EVENT_ON_SELECT);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pCreature);
+    sEluna->Push(sEluna->L, sender);
+    sEluna->Push(sEluna->L, action);
+    sEluna->Push(sEluna->L, code);
+    sEluna->ExecuteCall(6, 0);
     return true;
 }
 
-bool Eluna::OnQuestComplete(Player* pPlayer, Creature* pCreature, Quest const* pQuest)
+bool HookMgr::OnQuestAccept(Player* pPlayer, Creature* pCreature, Quest const* pQuest)
 {
-    ENTRY_BEGIN(CreatureEventBindings, pCreature->GetEntry(), CREATURE_EVENT_ON_QUEST_COMPLETE, return false);
-    Push(L, pPlayer);
-    Push(L, pCreature);
-    Push(L, pQuest);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->CreatureEventBindings.GetBind(pCreature->GetEntry(), CREATURE_EVENT_ON_QUEST_ACCEPT);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, CREATURE_EVENT_ON_QUEST_ACCEPT);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pCreature);
+    sEluna->Push(sEluna->L, pQuest);
+    sEluna->ExecuteCall(4, 0);
     return true;
 }
 
-bool Eluna::OnQuestReward(Player* pPlayer, Creature* pCreature, Quest const* pQuest)
+bool HookMgr::OnQuestComplete(Player* pPlayer, Creature* pCreature, Quest const* pQuest)
 {
-    ENTRY_BEGIN(CreatureEventBindings, pCreature->GetEntry(), CREATURE_EVENT_ON_QUEST_REWARD, return false);
-    Push(L, pPlayer);
-    Push(L, pCreature);
-    Push(L, pQuest);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->CreatureEventBindings.GetBind(pCreature->GetEntry(), CREATURE_EVENT_ON_QUEST_COMPLETE);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, CREATURE_EVENT_ON_QUEST_COMPLETE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pCreature);
+    sEluna->Push(sEluna->L, pQuest);
+    sEluna->ExecuteCall(4, 0);
     return true;
 }
 
-uint32 Eluna::GetDialogStatus(Player* pPlayer, Creature* pCreature)
+bool HookMgr::OnQuestReward(Player* pPlayer, Creature* pCreature, Quest const* pQuest)
 {
-    ENTRY_BEGIN(CreatureEventBindings, pCreature->GetEntry(), CREATURE_EVENT_ON_DIALOG_STATUS, return 0);
-    Push(L, pPlayer);
-    Push(L, pCreature);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->CreatureEventBindings.GetBind(pCreature->GetEntry(), CREATURE_EVENT_ON_QUEST_REWARD);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, CREATURE_EVENT_ON_QUEST_REWARD);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pCreature);
+    sEluna->Push(sEluna->L, pQuest);
+    sEluna->ExecuteCall(4, 0);
+    return true;
+}
+
+uint32 HookMgr::GetDialogStatus(Player* pPlayer, Creature* pCreature)
+{
+    int bind = sEluna->CreatureEventBindings.GetBind(pCreature->GetEntry(), CREATURE_EVENT_ON_DIALOG_STATUS);
+    if (!bind)
+        return 0;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, CREATURE_EVENT_ON_DIALOG_STATUS);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pCreature);
+    sEluna->ExecuteCall(3, 0);
     return DIALOG_STATUS_SCRIPTED_NO_STATUS;
 }
 
-void Eluna::OnSummoned(Creature* pCreature, Unit* pSummoner)
+void HookMgr::OnSummoned(Creature* pCreature, Unit* pSummoner)
 {
-    ENTRY_BEGIN(CreatureEventBindings, pCreature->GetEntry(), CREATURE_EVENT_ON_SUMMONED, return);
-    Push(L, pCreature);
-    Push(L, pSummoner);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->CreatureEventBindings.GetBind(pCreature->GetEntry(), CREATURE_EVENT_ON_SUMMONED);
+    if (!bind)
+        return;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, CREATURE_EVENT_ON_SUMMONED);
+    sEluna->Push(sEluna->L, pCreature);
+    sEluna->Push(sEluna->L, pSummoner);
+    sEluna->ExecuteCall(3, 0);
 }
 
 struct ElunaCreatureAI : ScriptedAI
@@ -1321,7 +1582,7 @@ struct ElunaCreatureAI : ScriptedAI
 #define me  m_creature
 #endif
 
-    ElunaCreatureAI(Creature* creature): ScriptedAI(creature)
+    ElunaCreatureAI(Creature* creature) : ScriptedAI(creature)
     {
         JustRespawned();
     }
@@ -1341,11 +1602,15 @@ struct ElunaCreatureAI : ScriptedAI
         if (!me->HasReactState(REACT_PASSIVE))
             ScriptedAI::UpdateAI(diff);
 #endif
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_AIUPDATE, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, diff);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_AIUPDATE);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_AIUPDATE);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, diff);
+        sEluna->ExecuteCall(3, 0);
     }
 
     //Called for reaction at enter to combat if not in combat yet (enemy can be NULL)
@@ -1353,23 +1618,31 @@ struct ElunaCreatureAI : ScriptedAI
     void EnterCombat(Unit* target) override
     {
         ScriptedAI::EnterCombat(target);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_ENTER_COMBAT, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, target);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_ENTER_COMBAT);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_ENTER_COMBAT);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, target);
+        sEluna->ExecuteCall(3, 0);
     }
 
     // Called at any Damage from any attacker (before damage apply)
     void DamageTaken(Unit* attacker, uint32& damage) override
     {
         ScriptedAI::DamageTaken(attacker, damage);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_DAMAGE_TAKEN, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, attacker);
-        Eluna::Push(L, damage);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_DAMAGE_TAKEN);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_DAMAGE_TAKEN);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, attacker);
+        sEluna->Push(sEluna->L, damage);
+        sEluna->ExecuteCall(4, 0);
     }
 
     //Called at creature death
@@ -1377,67 +1650,91 @@ struct ElunaCreatureAI : ScriptedAI
     {
         ScriptedAI::JustDied(killer);
         On_Reset();
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_DIED, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, killer);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_DIED);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_DIED);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, killer);
+        sEluna->ExecuteCall(3, 0);
     }
 
     //Called at creature killing another unit
     void KilledUnit(Unit* victim) override
     {
         ScriptedAI::KilledUnit(victim);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_TARGET_DIED, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, victim);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_TARGET_DIED);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_TARGET_DIED);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, victim);
+        sEluna->ExecuteCall(3, 0);
     }
 
     // Called when the creature summon successfully other creature
     void JustSummoned(Creature* summon) override
     {
         ScriptedAI::JustSummoned(summon);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_JUST_SUMMONED_CREATURE, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, summon);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_JUST_SUMMONED_CREATURE);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_JUST_SUMMONED_CREATURE);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, summon);
+        sEluna->ExecuteCall(3, 0);
     }
 
     // Called when a summoned creature is despawned
     void SummonedCreatureDespawn(Creature* summon) override
     {
         ScriptedAI::SummonedCreatureDespawn(summon);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_SUMMONED_CREATURE_DESPAWN, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, summon);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_SUMMONED_CREATURE_DESPAWN);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_SUMMONED_CREATURE_DESPAWN);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, summon);
+        sEluna->ExecuteCall(3, 0);
     }
 
     //Called at waypoint reached or PointMovement end
     void MovementInform(uint32 type, uint32 id) override
     {
         ScriptedAI::MovementInform(type, id);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_REACH_WP, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, type);
-        Eluna::Push(L, id);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_REACH_WP);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_REACH_WP);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, type);
+        sEluna->Push(sEluna->L, id);
+        sEluna->ExecuteCall(4, 0);
     }
 
     // Called before EnterCombat even before the creature is in combat.
     void AttackStart(Unit* target) override
     {
         ScriptedAI::AttackStart(target);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_PRE_COMBAT, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, target);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_PRE_COMBAT);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_PRE_COMBAT);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, target);
+        sEluna->ExecuteCall(3, 0);
     }
 
     // Called for reaction at stopping attack at no attackers or targets
@@ -1445,21 +1742,29 @@ struct ElunaCreatureAI : ScriptedAI
     {
         ScriptedAI::EnterEvadeMode();
         On_Reset();
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_LEAVE_COMBAT, return);
-        Eluna::Push(L, me);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_LEAVE_COMBAT);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_LEAVE_COMBAT);
+        sEluna->Push(sEluna->L, me);
+        sEluna->ExecuteCall(2, 0);
     }
 
     // Called when the creature is target of hostile action: swing, hostile spell landed, fear/etc)
     void AttackedBy(Unit* attacker) override
     {
         ScriptedAI::AttackedBy(attacker);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_ATTACKED_AT, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, attacker);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_ATTACKED_AT);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_ATTACKED_AT);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, attacker);
+        sEluna->ExecuteCall(3, 0);
     }
 
     // Called when creature is spawned or respawned (for reseting variables)
@@ -1467,43 +1772,59 @@ struct ElunaCreatureAI : ScriptedAI
     {
         ScriptedAI::JustRespawned();
         On_Reset();
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_SPAWN, return);
-        Eluna::Push(L, me);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_SPAWN);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_SPAWN);
+        sEluna->Push(sEluna->L, me);
+        sEluna->ExecuteCall(2, 0);
     }
 
     // Called at reaching home after evade
     void JustReachedHome() override
     {
         ScriptedAI::JustReachedHome();
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_REACH_HOME, return);
-        Eluna::Push(L, me);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_REACH_HOME);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_REACH_HOME);
+        sEluna->Push(sEluna->L, me);
+        sEluna->ExecuteCall(2, 0);
     }
 
     // Called at text emote receive from player
     void ReceiveEmote(Player* player, uint32 emoteId) override
     {
         ScriptedAI::ReceiveEmote(player, emoteId);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_RECEIVE_EMOTE, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, player);
-        Eluna::Push(L, emoteId);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_RECEIVE_EMOTE);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_RECEIVE_EMOTE);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, player);
+        sEluna->Push(sEluna->L, emoteId);
+        sEluna->ExecuteCall(4, 0);
     }
 
     // called when the corpse of this creature gets removed
     void CorpseRemoved(uint32& respawnDelay) override
     {
         ScriptedAI::CorpseRemoved(respawnDelay);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_CORPSE_REMOVED, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, respawnDelay);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_CORPSE_REMOVED);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_CORPSE_REMOVED);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, respawnDelay);
+        sEluna->ExecuteCall(3, 0);
     }
 
 #ifdef MANGOS
@@ -1517,44 +1838,60 @@ struct ElunaCreatureAI : ScriptedAI
     void MoveInLineOfSight(Unit* who) override
     {
         ScriptedAI::MoveInLineOfSight(who);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_MOVE_IN_LOS, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, who);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_MOVE_IN_LOS);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_MOVE_IN_LOS);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, who);
+        sEluna->ExecuteCall(3, 0);
     }
 
     // Called on creature initial spawn, respawn, death, evade (leave combat)
     void On_Reset() // Not an override, custom
     {
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_RESET, return);
-        Eluna::Push(L, me);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_RESET);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_RESET);
+        sEluna->Push(sEluna->L, me);
+        sEluna->ExecuteCall(2, 0);
     }
 
     // Called when hit by a spell
     void SpellHit(Unit* caster, SpellInfo const* spell) override
     {
         ScriptedAI::SpellHit(caster, spell);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_HIT_BY_SPELL, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, caster);
-        Eluna::Push(L, spell->Id); // Pass spell object?
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_HIT_BY_SPELL);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_HIT_BY_SPELL);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, caster);
+        sEluna->Push(sEluna->L, spell->Id); // Pass spell object?
+        sEluna->ExecuteCall(4, 0);
     }
 
     // Called when spell hits a target
     void SpellHitTarget(Unit* target, SpellInfo const* spell) override
     {
         ScriptedAI::SpellHitTarget(target, spell);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_SPELL_HIT_TARGET, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, target);
-        Eluna::Push(L, spell->Id); // Pass spell object?
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_SPELL_HIT_TARGET);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_SPELL_HIT_TARGET);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, target);
+        sEluna->Push(sEluna->L, spell->Id); // Pass spell object?
+        sEluna->ExecuteCall(4, 0);
     }
 
 #ifndef MANGOS
@@ -1563,40 +1900,52 @@ struct ElunaCreatureAI : ScriptedAI
     void IsSummonedBy(Unit* summoner) override
     {
         ScriptedAI::IsSummonedBy(summoner);
-        sEluna->OnSummoned(me, summoner);
+        sHookMgr->OnSummoned(me, summoner);
     }
 
     void SummonedCreatureDies(Creature* summon, Unit* killer) override
     {
         ScriptedAI::SummonedCreatureDies(summon, killer);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_SUMMONED_CREATURE_DIED, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, summon);
-        Eluna::Push(L, killer);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_SUMMONED_CREATURE_DIED);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_SUMMONED_CREATURE_DIED);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, summon);
+        sEluna->Push(sEluna->L, killer);
+        sEluna->ExecuteCall(4, 0);
     }
 
     // Called when owner takes damage
     void OwnerAttackedBy(Unit* attacker) override
     {
         ScriptedAI::OwnerAttackedBy(attacker);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_OWNER_ATTACKED_AT, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, attacker);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_OWNER_ATTACKED_AT);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_OWNER_ATTACKED_AT);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, attacker);
+        sEluna->ExecuteCall(3, 0);
     }
 
     // Called when owner attacks something
     void OwnerAttacked(Unit* target) override
     {
         ScriptedAI::OwnerAttacked(target);
-        ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_OWNER_ATTACKED, return);
-        Eluna::Push(L, me);
-        Eluna::Push(L, target);
-        ENTRY_EXECUTE(0);
-        ENDCALL();
+        int bind = sEluna->CreatureEventBindings.GetBind(me->GetEntry(), CREATURE_EVENT_ON_OWNER_ATTACKED);
+        if (!bind)
+            return;
+        ELUNA_GUARD();
+        sEluna->BeginCall(bind);
+        sEluna->Push(sEluna->L, CREATURE_EVENT_ON_OWNER_ATTACKED);
+        sEluna->Push(sEluna->L, me);
+        sEluna->Push(sEluna->L, target);
+        sEluna->ExecuteCall(3, 0);
     }
 #endif
 
@@ -1606,159 +1955,222 @@ struct ElunaCreatureAI : ScriptedAI
 };
 
 // gameobject
-bool Eluna::OnDummyEffect(Unit* pCaster, uint32 spellId, SpellEffIndex effIndex, GameObject* pTarget)
+bool HookMgr::OnDummyEffect(Unit* pCaster, uint32 spellId, SpellEffIndex effIndex, GameObject* pTarget)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pTarget->GetEntry(), GAMEOBJECT_EVENT_ON_DUMMY_EFFECT, return false);
-    Push(L, pCaster);
-    Push(L, spellId);
-    Push(L, effIndex);
-    Push(L, pTarget);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->GameObjectEventBindings.GetBind(pTarget->GetEntry(), GAMEOBJECT_EVENT_ON_DUMMY_EFFECT);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_DUMMY_EFFECT);
+    sEluna->Push(sEluna->L, pCaster);
+    sEluna->Push(sEluna->L, spellId);
+    sEluna->Push(sEluna->L, effIndex);
+    sEluna->Push(sEluna->L, pTarget);
+    sEluna->ExecuteCall(5, 0);
     return true;
 }
 
-bool Eluna::OnGossipHello(Player* pPlayer, GameObject* pGameObject)
+bool HookMgr::OnGossipHello(Player* pPlayer, GameObject* pGameObject)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GOSSIP_EVENT_ON_HELLO, return false);
+    int bind = sEluna->GameObjectGossipBindings.GetBind(pGameObject->GetEntry(), GOSSIP_EVENT_ON_HELLO);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
     pPlayer->PlayerTalkClass->ClearMenus();
-    Push(L, pPlayer);
-    Push(L, pGameObject);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GOSSIP_EVENT_ON_HELLO);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pGameObject);
+    sEluna->ExecuteCall(3, 0);
     return true;
 }
 
-bool Eluna::OnGossipSelect(Player* pPlayer, GameObject* pGameObject, uint32 sender, uint32 action)
+bool HookMgr::OnGossipSelect(Player* pPlayer, GameObject* pGameObject, uint32 sender, uint32 action)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GOSSIP_EVENT_ON_SELECT, return false);
+    int bind = sEluna->GameObjectGossipBindings.GetBind(pGameObject->GetEntry(), GOSSIP_EVENT_ON_SELECT);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
     pPlayer->PlayerTalkClass->ClearMenus();
-    Push(L, pPlayer);
-    Push(L, pGameObject);
-    Push(L, sender);
-    Push(L, action);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GOSSIP_EVENT_ON_SELECT);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pGameObject);
+    sEluna->Push(sEluna->L, sender);
+    sEluna->Push(sEluna->L, action);
+    sEluna->ExecuteCall(5, 0);
     return true;
 }
 
-bool Eluna::OnGossipSelectCode(Player* pPlayer, GameObject* pGameObject, uint32 sender, uint32 action, const char* code)
+bool HookMgr::OnGossipSelectCode(Player* pPlayer, GameObject* pGameObject, uint32 sender, uint32 action, const char* code)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GOSSIP_EVENT_ON_SELECT, return false);
+    int bind = sEluna->GameObjectGossipBindings.GetBind(pGameObject->GetEntry(), GOSSIP_EVENT_ON_SELECT);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
     pPlayer->PlayerTalkClass->ClearMenus();
-    Push(L, pPlayer);
-    Push(L, pGameObject);
-    Push(L, sender);
-    Push(L, action);
-    Push(L, code);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GOSSIP_EVENT_ON_SELECT);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pGameObject);
+    sEluna->Push(sEluna->L, sender);
+    sEluna->Push(sEluna->L, action);
+    sEluna->Push(sEluna->L, code);
+    sEluna->ExecuteCall(6, 0);
     return true;
 }
 
-bool Eluna::OnQuestAccept(Player* pPlayer, GameObject* pGameObject, Quest const* pQuest)
+bool HookMgr::OnQuestAccept(Player* pPlayer, GameObject* pGameObject, Quest const* pQuest)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_QUEST_ACCEPT, return false);
-    Push(L, pPlayer);
-    Push(L, pGameObject);
-    Push(L, pQuest);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->GameObjectEventBindings.GetBind(pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_QUEST_ACCEPT);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_QUEST_ACCEPT);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pGameObject);
+    sEluna->Push(sEluna->L, pQuest);
+    sEluna->ExecuteCall(4, 0);
     return true;
 }
 
-bool Eluna::OnQuestComplete(Player* pPlayer, GameObject* pGameObject, Quest const* pQuest)
+bool HookMgr::OnQuestComplete(Player* pPlayer, GameObject* pGameObject, Quest const* pQuest)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_QUEST_COMPLETE, return false);
-    Push(L, pPlayer);
-    Push(L, pGameObject);
-    Push(L, pQuest);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->GameObjectEventBindings.GetBind(pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_QUEST_COMPLETE);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_QUEST_COMPLETE);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pGameObject);
+    sEluna->Push(sEluna->L, pQuest);
+    sEluna->ExecuteCall(4, 0);
     return true;
 }
 
-void Eluna::UpdateAI(GameObject* pGameObject, uint32 diff)
+void HookMgr::UpdateAI(GameObject* pGameObject, uint32 diff)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_AIUPDATE, return);
-    Push(L, pGameObject);
-    Push(L, diff);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->GameObjectEventBindings.GetBind(pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_AIUPDATE);
+    if (!bind)
+        return;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_AIUPDATE);
+    sEluna->Push(sEluna->L, pGameObject);
+    sEluna->Push(sEluna->L, diff);
+    sEluna->ExecuteCall(3, 0);
 }
 
-bool Eluna::OnQuestReward(Player* pPlayer, GameObject* pGameObject, Quest const* pQuest)
+bool HookMgr::OnQuestReward(Player* pPlayer, GameObject* pGameObject, Quest const* pQuest)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_QUEST_REWARD, return false);
-    Push(L, pPlayer);
-    Push(L, pGameObject);
-    Push(L, pQuest);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->GameObjectEventBindings.GetBind(pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_QUEST_REWARD);
+    if (!bind)
+        return false;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_QUEST_REWARD);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pGameObject);
+    sEluna->Push(sEluna->L, pQuest);
+    sEluna->ExecuteCall(4, 0);
     return true;
 }
 
-uint32 Eluna::GetDialogStatus(Player* pPlayer, GameObject* pGameObject)
+uint32 HookMgr::GetDialogStatus(Player* pPlayer, GameObject* pGameObject)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_DIALOG_STATUS, return 0);
-    Push(L, pPlayer);
-    Push(L, pGameObject);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->GameObjectEventBindings.GetBind(pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_DIALOG_STATUS);
+    if (!bind)
+        return 0;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_DIALOG_STATUS);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->Push(sEluna->L, pGameObject);
+    sEluna->ExecuteCall(3, 0);
     return DIALOG_STATUS_SCRIPTED_NO_STATUS; // DIALOG_STATUS_UNDEFINED
 }
 
 #ifndef CLASSIC
 #ifndef TBC
-void Eluna::OnDestroyed(GameObject* pGameObject, Player* pPlayer)
+void HookMgr::OnDestroyed(GameObject* pGameObject, Player* pPlayer)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_DESTROYED, return);
-    Push(L, pGameObject);
-    Push(L, pPlayer);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->GameObjectEventBindings.GetBind(pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_DESTROYED);
+    if (!bind)
+        return;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_DESTROYED);
+    sEluna->Push(sEluna->L, pGameObject);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->ExecuteCall(3, 0);
 }
 
-void Eluna::OnDamaged(GameObject* pGameObject, Player* pPlayer)
+void HookMgr::OnDamaged(GameObject* pGameObject, Player* pPlayer)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_DAMAGED, return);
-    Push(L, pGameObject);
-    Push(L, pPlayer);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->GameObjectEventBindings.GetBind(pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_DAMAGED);
+    if (!bind)
+        return;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_DAMAGED);
+    sEluna->Push(sEluna->L, pGameObject);
+    sEluna->Push(sEluna->L, pPlayer);
+    sEluna->ExecuteCall(3, 0);
 }
 #endif
 #endif
 
-void Eluna::OnLootStateChanged(GameObject* pGameObject, uint32 state)
+void HookMgr::OnLootStateChanged(GameObject* pGameObject, uint32 state)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_LOOT_STATE_CHANGE, return);
-    Push(L, pGameObject);
-    Push(L, state);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->GameObjectEventBindings.GetBind(pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_LOOT_STATE_CHANGE);
+    if (!bind)
+        return;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_LOOT_STATE_CHANGE);
+    sEluna->Push(sEluna->L, pGameObject);
+    sEluna->Push(sEluna->L, state);
+    sEluna->ExecuteCall(4, 0);
 }
 
-void Eluna::OnGameObjectStateChanged(GameObject* pGameObject, uint32 state)
+void HookMgr::OnGameObjectStateChanged(GameObject* pGameObject, uint32 state)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_GO_STATE_CHANGED, return);
-    Push(L, pGameObject);
-    Push(L, state);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
+    int bind = sEluna->GameObjectEventBindings.GetBind(pGameObject->GetEntry(), GAMEOBJECT_EVENT_ON_GO_STATE_CHANGED);
+    if (!bind)
+        return;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_GO_STATE_CHANGED);
+    sEluna->Push(sEluna->L, pGameObject);
+    sEluna->Push(sEluna->L, state);
+    sEluna->ExecuteCall(3, 0);
 }
 
-void Eluna::OnSpawn(GameObject* gameobject)
+CreatureAI* HookMgr::GetAI(Creature* creature)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, gameobject->GetEntry(), GAMEOBJECT_EVENT_ON_SPAWN, return);
-    Push(L, gameobject);
-    ENTRY_EXECUTE(0);
-    ENDCALL();
-}
-
-CreatureAI* Eluna::GetAI(Creature* creature)
-{
-    if (!CreatureEventBindings->GetBindMap(creature->GetEntry()))
+    if (!sEluna->CreatureEventBindings.GetBindMap(creature->GetEntry()))
         return NULL;
     return new ElunaCreatureAI(creature);
+}
+
+void HookMgr::OnSpawn(GameObject* gameobject)
+{
+    int bind = sEluna->GameObjectEventBindings.GetBind(gameobject->GetEntry(), GAMEOBJECT_EVENT_ON_SPAWN);
+    if (!bind)
+        return;
+    ELUNA_GUARD();
+    sEluna->BeginCall(bind);
+    sEluna->Push(sEluna->L, GAMEOBJECT_EVENT_ON_SPAWN);
+    sEluna->Push(sEluna->L, gameobject);
+    sEluna->ExecuteCall(2, 0);
+}
+
+void AddElunaScripts()
+{
+#ifndef MANGOS
+    new ElunaWorldAI();
+#endif
 }
