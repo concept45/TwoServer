@@ -29,7 +29,7 @@
 #include "Mail.h"
 #include "Util.h"
 #include "Chat.h"
-#include "HookMgr.h"
+#include "LuaEngine.h"
 
 // please DO NOT use iterator++, because it is slower than ++iterator!!!
 // post-incrementation is always slower than pre-incrementation !
@@ -370,7 +370,7 @@ void WorldSession::HandleAuctionSellItem(WorldPacket& recv_data)
         GetPlayer()->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_CREATE_AUCTION, 1);
 
         // used by eluna
-        sHookMgr->OnAdd(auctionHouse);
+        sEluna->OnAdd(auctionHouse);
     }
 }
 
@@ -525,7 +525,7 @@ void WorldSession::HandleAuctionRemoveItem(WorldPacket& recv_data)
     CharacterDatabase.CommitTransaction();
     sAuctionMgr.RemoveAItem(auction->itemGuidLow);
     // used by eluna
-    sHookMgr->OnRemove(auctionHouse);
+    sEluna->OnRemove(auctionHouse);
     auctionHouse->RemoveAuction(auction->Id);
     delete auction;
 }

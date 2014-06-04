@@ -31,7 +31,7 @@
 #include "World.h"
 #include "Util.h"
 #include "DBCStores.h"
-#include "HookMgr.h"
+#include "LuaEngine.h"
 
 void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recv_data)
 {
@@ -278,7 +278,7 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket& /*recv_data*/)
         }
 
         // used by eluna
-        sHookMgr->OnLootMoney(player, pLoot->gold);
+        sEluna->OnLootMoney(player, pLoot->gold);
 
         pLoot->gold = 0;
 
@@ -580,7 +580,7 @@ void WorldSession::HandleLootMasterGiveOpcode(WorldPacket& recv_data)
     target->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_EPIC_ITEM, item.itemid, item.count);
 
     // used by eluna
-    sHookMgr->OnLootItem(target, newitem, item.count, lootguid);
+    sEluna->OnLootItem(target, newitem, item.count, lootguid);
 
     // mark as looted
     item.count = 0;

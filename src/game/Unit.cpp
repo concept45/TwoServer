@@ -51,7 +51,7 @@
 #include "movement/MoveSplineInit.h"
 #include "movement/MoveSpline.h"
 #include "CreatureLinkingMgr.h"
-#include "HookMgr.h"
+#include "LuaEngine.h"
 
 #include <math.h>
 #include <stdarg.h>
@@ -275,6 +275,8 @@ Unit::Unit() :
 
 Unit::~Unit()
 {
+    Eluna::RemoveRef(this);
+
     // set current spells as deletable
     for (uint32 i = 0; i < CURRENT_MAX_SPELL; ++i)
     {
@@ -811,7 +813,7 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
         {
             // used by eluna
             if (Player* killed = pVictim->ToPlayer())
-                sHookMgr->OnPlayerKilledByCreature(killer, killed);
+                sEluna->OnPlayerKilledByCreature(killer, killed);
         }
 
         // Call AI OwnerKilledUnit (for any current summoned minipet/guardian/protector)
@@ -879,7 +881,7 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
                 }
 
                 // used by eluna
-                sHookMgr->OnPVPKill(player_tap, playerVictim);
+                sEluna->OnPVPKill(player_tap, playerVictim);
             }
         }
         else                                                // Killed creature
@@ -1081,7 +1083,7 @@ void Unit::JustKilledCreature(Creature* victim, Player* responsiblePlayer)
             bg->HandleKillUnit(victim, responsiblePlayer);
 
         // used by eluna
-        sHookMgr->OnCreatureKill(responsiblePlayer, victim);
+        sEluna->OnCreatureKill(responsiblePlayer, victim);
     }
     // Notify the outdoor pvp script
     if (OutdoorPvP* outdoorPvP = sOutdoorPvPMgr.GetScript(responsiblePlayer ? responsiblePlayer->GetCachedZoneId() : GetZoneId()))
@@ -8048,7 +8050,7 @@ void Unit::SetInCombatState(bool PvP, Unit* enemy)
 
     // used by eluna
     if (GetTypeId() == TYPEID_PLAYER)
-        sHookMgr->OnPlayerEnterCombat(ToPlayer(), enemy);
+        sEluna->OnPlayerEnterCombat(ToPlayer(), enemy);
 }
 
 void Unit::ClearInCombat()
@@ -8061,7 +8063,7 @@ void Unit::ClearInCombat()
 
     // used by eluna
     if (GetTypeId() == TYPEID_PLAYER)
-        sHookMgr->OnPlayerLeaveCombat(ToPlayer());
+        sEluna->OnPlayerLeaveCombat(ToPlayer());
 
     // Player's state will be cleared in Player::UpdateContestedPvP
     if (GetTypeId() == TYPEID_UNIT)

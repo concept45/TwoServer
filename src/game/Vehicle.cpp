@@ -46,7 +46,7 @@
 #include "movement/MoveSpline.h"
 #include "MapManager.h"
 #include "TemporarySummon.h"
-#include "HookMgr.h"
+#include "LuaEngine.h"
 
 void ObjectMgr::LoadVehicleAccessory()
 {
@@ -119,6 +119,8 @@ VehicleInfo::VehicleInfo(Unit* owner, VehicleEntry const* vehicleEntry, uint32 o
 
 VehicleInfo::~VehicleInfo()
 {
+    Eluna::RemoveRef(this);
+
     ((Unit*)m_owner)->RemoveSpellsCausingAura(SPELL_AURA_CONTROL_VEHICLE);
 
     RemoveAccessoriesFromMap();                             // Remove accessories (for example required with player vehicles)
@@ -140,7 +142,7 @@ void VehicleInfo::Initialize()
             int32 basepoint0 = itr->seatId + 1;
             summoned->CastCustomSpell((Unit*)m_owner, SPELL_RIDE_VEHICLE_HARDCODED, &basepoint0, NULL, NULL, true);
 
-            sHookMgr->OnInstallAccessory(this, summoned);
+            sEluna->OnInstallAccessory(this, summoned);
         }
     }
 
@@ -168,7 +170,7 @@ void VehicleInfo::Initialize()
 
     m_isInitialized = true;
 
-    sHookMgr->OnInstall(this);
+    sEluna->OnInstall(this);
 }
 
 /**
@@ -241,7 +243,7 @@ void VehicleInfo::Board(Unit* passenger, uint8 seat)
     // Apply passenger modifications
     ApplySeatMods(passenger, seatEntry->m_flags);
 
-    sHookMgr->OnAddPassenger(this, passenger, seat);
+    sEluna->OnAddPassenger(this, passenger, seat);
 }
 
 /**
@@ -356,7 +358,7 @@ void VehicleInfo::UnBoard(Unit* passenger, bool changeVehicle)
     // Remove passenger modifications
     RemoveSeatMods(passenger, seatEntry->m_flags);
 
-    sHookMgr->OnRemovePassenger(this, passenger);
+    sEluna->OnRemovePassenger(this, passenger);
 
     // Some creature vehicles get despawned after passenger unboarding
     if (m_owner->GetTypeId() == TYPEID_UNIT)

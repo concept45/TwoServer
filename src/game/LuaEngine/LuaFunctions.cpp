@@ -5,7 +5,9 @@
 */
 
 // Eluna
+#include "HookMgr.h"
 #include "LuaEngine.h"
+#include "Includes.h"
 // Methods
 #include "GlobalMethods.h"
 #include "ObjectMethods.h"
@@ -30,7 +32,7 @@
 void RegisterGlobals(lua_State* L)
 {
     // Hooks
-    lua_register(L, "RegisterPacketEvent", &LuaGlobalFunctions::RegisterPacketEvent);                       // RegisterPacketEvent(opcodeID, function)
+    lua_register(L, "RegisterPacketEvent", &LuaGlobalFunctions::RegisterPacketEvent);                       // RegisterPacketEvent(opcodeID, event, function)
     lua_register(L, "RegisterServerEvent", &LuaGlobalFunctions::RegisterServerEvent);                       // RegisterServerEvent(event, function)
     lua_register(L, "RegisterPlayerEvent", &LuaGlobalFunctions::RegisterPlayerEvent);                       // RegisterPlayerEvent(event, function)
     lua_register(L, "RegisterGuildEvent", &LuaGlobalFunctions::RegisterGuildEvent);                         // RegisterGuildEvent(event, function)
@@ -75,7 +77,7 @@ void RegisterGlobals(lua_State* L)
     lua_register(L, "GetMapById", &LuaGlobalFunctions::GetMapById);                                         // GetMapById(mapId, instance) - Returns map object of id specified. UNDOCUMENTED
 
     // Other
-    // lua_register(L, "ReloadEluna", &LuaGlobalFunctions::ReloadEluna);                                    // ReloadEluna() - Reload's Eluna engine. Returns true if reload succesful.
+    lua_register(L, "ReloadEluna", &LuaGlobalFunctions::ReloadEluna);                                       // ReloadEluna() - Reload's Eluna engine.
     lua_register(L, "SendWorldMessage", &LuaGlobalFunctions::SendWorldMessage);                             // SendWorldMessage(msg) - Sends a broadcast message to everyone
     lua_register(L, "WorldDBQuery", &LuaGlobalFunctions::WorldDBQuery);                                     // WorldDBQuery(sql) - Executes given SQL query to world database instantly and returns a QueryResult object
     lua_register(L, "WorldDBExecute", &LuaGlobalFunctions::WorldDBExecute);                                 // WorldDBExecute(sql) - Executes given SQL query to world database (not instant)
@@ -455,9 +457,9 @@ ElunaRegister<Player> PlayerMethods[] =
     { "GetShieldBlockValue", &LuaPlayer::GetShieldBlockValue },                   // :GetShieldBlockValue() - Returns block value
 #endif
 #ifdef CLASSIC
-    {"GetHonorStoredKills", &LuaPlayer::GetHonorStoredKills},                     // :GetHonorStoredKills(on/off)
-    {"GetRankPoints", &LuaPlayer::GetRankPoints},                                 // :GetRankPoints()
-    {"GetHonorLastWeekStandingPos", &LuaPlayer::GetHonorLastWeekStandingPos},     // :GetHonorLastWeekStandingPos()
+    { "GetHonorStoredKills", &LuaPlayer::GetHonorStoredKills },                     // :GetHonorStoredKills(on/off)
+    { "GetRankPoints", &LuaPlayer::GetRankPoints },                                 // :GetRankPoints()
+    { "GetHonorLastWeekStandingPos", &LuaPlayer::GetHonorLastWeekStandingPos },     // :GetHonorLastWeekStandingPos()
 #endif
 
     // Setters
@@ -478,9 +480,9 @@ ElunaRegister<Player> PlayerMethods[] =
 #endif
 #endif
 #ifdef CLASSIC
-    {"SetHonorStoredKills", &LuaPlayer::SetHonorStoredKills},     // :SetHonorStoredKills(kills, [on/off])
-    {"SetRankPoints", &LuaPlayer::SetRankPoints},                 // :SetRankPoints(rankPoints)
-    {"SetHonorLastWeekStandingPos", &LuaPlayer::SetHonorLastWeekStandingPos}, // :SetHonorLastWeekStandingPos(standingPos)
+    { "SetHonorStoredKills", &LuaPlayer::SetHonorStoredKills },     // :SetHonorStoredKills(kills, [on/off])
+    { "SetRankPoints", &LuaPlayer::SetRankPoints },                 // :SetRankPoints(rankPoints)
+    { "SetHonorLastWeekStandingPos", &LuaPlayer::SetHonorLastWeekStandingPos }, // :SetHonorLastWeekStandingPos(standingPos)
 #endif
     { "SetLifetimeKills", &LuaPlayer::SetLifetimeKills },         // :SetLifetimeKills(val) - Sets the overall lifetime (honorable) kills of the player
     { "SetGameMaster", &LuaPlayer::SetGameMaster },               // :SetGameMaster([on]) - Sets GM mode on or off
@@ -682,9 +684,9 @@ ElunaRegister<Player> PlayerMethods[] =
     { "SummonPlayer", &LuaPlayer::SummonPlayer },                                         // :SummonPlayer(player, map, x, y, z, zoneId[, delay]) - Sends a popup to the player asking if he wants to be summoned if yes, teleported to coords. ZoneID defines the location name shown in the popup Delay is the time until the popup closes automatically.
     { "SaveToDB", &LuaPlayer::SaveToDB },                                                 // :SaveToDB() - Saves to database
 #ifdef CLASSIC
-    {"UpdateHonor", &LuaPlayer::UpdateHonor},                                             // :UpdateHonor() - Updates Player Honor
-    {"ResetHonor", &LuaPlayer::ResetHonor},                                               // :ResetHonor() - Resets Player Honor
-    {"ClearHonorInfo", &LuaPlayer::ClearHonorInfo},                                       // :ClearHonorInfo() - Clear Player Honor Info
+    { "UpdateHonor", &LuaPlayer::UpdateHonor },                                             // :UpdateHonor() - Updates Player Honor
+    { "ResetHonor", &LuaPlayer::ResetHonor },                                               // :ResetHonor() - Resets Player Honor
+    { "ClearHonorInfo", &LuaPlayer::ClearHonorInfo },                                       // :ClearHonorInfo() - Clear Player Honor Info
 #endif
 
     { NULL, NULL },
@@ -1181,13 +1183,20 @@ template<typename T> const char* ElunaTemplate<T>::tname = NULL;
 template<typename T> bool ElunaTemplate<T>::manageMemory = false;
 #if (!defined(TBC) && !defined(CLASSIC))
 // fix compile error about accessing vehicle destructor
-template<> int ElunaTemplate<Vehicle>::gcT(lua_State* L) { return 0; }
+template<> int ElunaTemplate<Vehicle>::gcT(lua_State* L)
+{
+    // If assert fails, should code mem management here or flag Vehicles not mem managed
+    ASSERT(!manageMemory);
+    return 0;
+}
 #endif
 
 void RegisterFunctions(lua_State* L)
 {
     RegisterGlobals(L);
-    lua_settop(L, 0); // clean stack
+
+    // You should add Eluna::RemoveRef(this); to all destructors for objects that are NOT mem managed (gc) by lua.
+    // Exceptions being Quest type static data structs that will never be destructed (during runtime), though they can have it as well.
 
     ElunaTemplate<Object>::Register(L, "Object");
     ElunaTemplate<Object>::SetMethods(L, ObjectMethods);
@@ -1263,6 +1272,4 @@ void RegisterFunctions(lua_State* L)
 
     ElunaTemplate<QueryResult>::Register(L, "QueryResult", true);
     ElunaTemplate<QueryResult>::SetMethods(L, QueryMethods);
-
-    lua_settop(L, 0); // clean stack
 }
