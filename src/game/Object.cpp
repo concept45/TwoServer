@@ -44,7 +44,7 @@
 #include "movement/packet_builder.h"
 #include "CreatureLinkingMgr.h"
 #include "Chat.h"
-#include "HookMgr.h"
+#include "LuaEngine.h"
 
 Object::Object()
 {
@@ -60,6 +60,8 @@ Object::Object()
 
 Object::~Object()
 {
+    Eluna::RemoveRef(this);
+
     if (IsInWorld())
     {
         ///- Do NOT call RemoveFromWorld here, if the object is a player it will crash
@@ -952,6 +954,11 @@ WorldObject::WorldObject() :
 {
 }
 
+WorldObject::~WorldObject()
+{
+    Eluna::RemoveRef(this);
+}
+
 void WorldObject::CleanupsBeforeDelete()
 {
     RemoveFromWorld();
@@ -1591,7 +1598,7 @@ Creature* WorldObject::SummonCreature(uint32 id, float x, float y, float z, floa
     if (GetTypeId() == TYPEID_UNIT && ((Creature*)this)->AI())
         ((Creature*)this)->AI()->JustSummoned(pCreature);
     if (Unit* summoner = ToUnit())
-        sHookMgr->OnSummoned(pCreature, summoner);
+        sEluna->OnSummoned(pCreature, summoner);
 
     // Creature Linking, Initial load is handled like respawn
     if (pCreature->IsLinkingEventTrigger())
