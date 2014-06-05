@@ -8,6 +8,8 @@
 #include "LuaEngine.h"
 #include "Includes.h"
 
+using namespace HookMgr;
+
 /*
 Call model for EventBind:
 
@@ -30,26 +32,27 @@ ENDCALL();
     lua_State* L = sEluna->L; \
     uint32 _LuaEvent = EVENT; \
     int _LuaStackTop = lua_gettop(L); \
-    EventBind* _LuaBindMap = sEluna->BINDMAP; \
+    for (size_t i = 0; i < sEluna->BINDMAP->Bindings[_LuaEvent].size(); ++i) \
+        lua_rawgeti(L, LUA_REGISTRYINDEX, (sEluna->BINDMAP->Bindings[_LuaEvent][i])); \
+    int _LuaFuncTop = lua_gettop(L); \
     Eluna::Push(L, _LuaEvent);
 
 // use LUA_MULTRET for multiple return values
 // return values will be at top of stack if any
 #define EVENT_EXECUTE(RETVALS) \
     int _LuaReturnValues = RETVALS; \
-    int _LuaParams = lua_gettop(L) - _LuaStackTop; \
+    int _LuaParams = lua_gettop(L) - _LuaFuncTop; \
     if (_LuaParams < 1) \
-        { \
+    { \
         ELUNA_LOG_ERROR("[Eluna]: Executing event %u, params was %i. Report to devs", _LuaEvent, _LuaParams); \
-        } \
-    for (EventBind::ElunaBindingMap::const_iterator it = _LuaBindMap->Bindings[_LuaEvent].begin(); it != _LuaBindMap->Bindings[_LuaEvent].end(); ++it) \
-        { \
-        lua_rawgeti(L, LUA_REGISTRYINDEX, (*it)); \
-        int stacktop = lua_gettop(L); \
-        for (int i = stacktop - _LuaParams; i < stacktop; ++i) \
-            lua_pushvalue(L, i); \
+    } \
+    for (int j = _LuaFuncTop-_LuaStackTop; j > 0; --j) \
+    { \
+        for (int i = 0; i <= _LuaParams; ++i) \
+            lua_pushvalue(L, _LuaFuncTop+i); \
         Eluna::ExecuteCall(L, _LuaParams, _LuaReturnValues); \
-        } \
+        lua_remove(L, _LuaFuncTop--); \
+    } \
     for (int i = _LuaParams; i > 0; --i) \
         if (!lua_isnone(L, i)) \
             lua_remove(L, i);
@@ -75,9 +78,9 @@ ENDCALL();
 
 #define ENDCALL() \
     if (_LuaReturnValues != LUA_MULTRET && lua_gettop(L) != _LuaStackTop + _LuaReturnValues) \
-            { \
+    { \
         ELUNA_LOG_ERROR("[Eluna]: Ending event %u, stack top was %i and was supposed to be %i. Report to devs", _LuaEvent, lua_gettop(L), _LuaStackTop); \
-            } \
+    } \
     lua_settop(L, _LuaStackTop);
 
 void Eluna::OnLuaStateClose()
@@ -173,7 +176,7 @@ void Eluna::OnPacketSendAny(Player* player, WorldPacket& packet, bool& result)
 }
 void Eluna::OnPacketSendOne(Player* player, WorldPacket& packet, bool& result)
 {
-    ENTRY_BEGIN(PacketEventBindings, OpcodesList(packet.GetOpcode()), SERVER_EVENT_ON_PACKET_SEND, return);
+    ENTRY_BEGIN(PacketEventBindings, OpcodesList(packet.GetOpcode()), PACKET_EVENT_ON_PACKET_SEND, return);
     Push(L, new WorldPacket(packet));
     Push(L, player);
     ENTRY_EXECUTE(2);
@@ -224,7 +227,7 @@ void Eluna::OnPacketReceiveAny(Player* player, WorldPacket& packet, bool& result
 }
 void Eluna::OnPacketReceiveOne(Player* player, WorldPacket& packet, bool& result)
 {
-    ENTRY_BEGIN(PacketEventBindings, OpcodesList(packet.GetOpcode()), SERVER_EVENT_ON_PACKET_RECEIVE, return);
+    ENTRY_BEGIN(PacketEventBindings, OpcodesList(packet.GetOpcode()), PACKET_EVENT_ON_PACKET_RECEIVE, return);
     Push(L, new WorldPacket(packet));
     Push(L, player);
     ENTRY_EXECUTE(2);
@@ -388,7 +391,7 @@ bool Eluna::OnUse(Player* pPlayer, Item* pItem, SpellCastTargets const& targets)
 }
 bool Eluna::OnItemUse(Player* pPlayer, Item* pItem, SpellCastTargets const& targets)
 {
-    ENTRY_BEGIN(ItemEventBindings, pItem->GetEntry(), GOSSIP_EVENT_ON_HELLO, return false);
+    ENTRY_BEGIN(ItemEventBindings, pItem->GetEntry(), ITEM_EVENT_ON_USE, return false);
     Push(L, pPlayer);
     Push(L, pItem);
 #ifdef MANGOS
@@ -422,7 +425,7 @@ bool Eluna::OnItemUse(Player* pPlayer, Item* pItem, SpellCastTargets const& targ
 }
 bool Eluna::OnItemGossip(Player* pPlayer, Item* pItem, SpellCastTargets const& targets)
 {
-    ENTRY_BEGIN(ItemEventBindings, pItem->GetEntry(), ITEM_EVENT_ON_USE, return false);
+    ENTRY_BEGIN(ItemGossipBindings, pItem->GetEntry(), GOSSIP_EVENT_ON_HELLO, return false);
     Push(L, pPlayer);
     Push(L, pItem);
     ENTRY_EXECUTE(0);
@@ -473,7 +476,7 @@ bool Eluna::OnCommand(Player* player, const char* text)
         }
     }
     bool result = true;
-    EVENT_BEGIN(ServerEventBindings, PLAYER_EVENT_ON_COMMAND, return result);
+    EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_COMMAND, return result);
     Push(L, player);
     Push(L, fullcmd);
     EVENT_EXECUTE(1);
@@ -1228,7 +1231,7 @@ bool Eluna::OnDummyEffect(Unit* pCaster, uint32 spellId, SpellEffIndex effIndex,
 
 bool Eluna::OnGossipHello(Player* pPlayer, Creature* pCreature)
 {
-    ENTRY_BEGIN(CreatureEventBindings, pCreature->GetEntry(), GOSSIP_EVENT_ON_HELLO, return false);
+    ENTRY_BEGIN(CreatureGossipBindings, pCreature->GetEntry(), GOSSIP_EVENT_ON_HELLO, return false);
     Push(L, pPlayer);
     Push(L, pCreature);
     ENTRY_EXECUTE(0);
@@ -1238,7 +1241,7 @@ bool Eluna::OnGossipHello(Player* pPlayer, Creature* pCreature)
 
 bool Eluna::OnGossipSelect(Player* pPlayer, Creature* pCreature, uint32 sender, uint32 action)
 {
-    ENTRY_BEGIN(CreatureEventBindings, pCreature->GetEntry(), GOSSIP_EVENT_ON_SELECT, return false);
+    ENTRY_BEGIN(CreatureGossipBindings, pCreature->GetEntry(), GOSSIP_EVENT_ON_SELECT, return false);
     pPlayer->PlayerTalkClass->ClearMenus();
     Push(L, pPlayer);
     Push(L, pCreature);
@@ -1251,7 +1254,7 @@ bool Eluna::OnGossipSelect(Player* pPlayer, Creature* pCreature, uint32 sender, 
 
 bool Eluna::OnGossipSelectCode(Player* pPlayer, Creature* pCreature, uint32 sender, uint32 action, const char* code)
 {
-    ENTRY_BEGIN(CreatureEventBindings, pCreature->GetEntry(), GOSSIP_EVENT_ON_SELECT, return false);
+    ENTRY_BEGIN(CreatureGossipBindings, pCreature->GetEntry(), GOSSIP_EVENT_ON_SELECT, return false);
     pPlayer->PlayerTalkClass->ClearMenus();
     Push(L, pPlayer);
     Push(L, pCreature);
@@ -1620,7 +1623,7 @@ bool Eluna::OnDummyEffect(Unit* pCaster, uint32 spellId, SpellEffIndex effIndex,
 
 bool Eluna::OnGossipHello(Player* pPlayer, GameObject* pGameObject)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GOSSIP_EVENT_ON_HELLO, return false);
+    ENTRY_BEGIN(GameObjectGossipBindings, pGameObject->GetEntry(), GOSSIP_EVENT_ON_HELLO, return false);
     pPlayer->PlayerTalkClass->ClearMenus();
     Push(L, pPlayer);
     Push(L, pGameObject);
@@ -1631,7 +1634,7 @@ bool Eluna::OnGossipHello(Player* pPlayer, GameObject* pGameObject)
 
 bool Eluna::OnGossipSelect(Player* pPlayer, GameObject* pGameObject, uint32 sender, uint32 action)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GOSSIP_EVENT_ON_SELECT, return false);
+    ENTRY_BEGIN(GameObjectGossipBindings, pGameObject->GetEntry(), GOSSIP_EVENT_ON_SELECT, return false);
     pPlayer->PlayerTalkClass->ClearMenus();
     Push(L, pPlayer);
     Push(L, pGameObject);
@@ -1644,7 +1647,7 @@ bool Eluna::OnGossipSelect(Player* pPlayer, GameObject* pGameObject, uint32 send
 
 bool Eluna::OnGossipSelectCode(Player* pPlayer, GameObject* pGameObject, uint32 sender, uint32 action, const char* code)
 {
-    ENTRY_BEGIN(GameObjectEventBindings, pGameObject->GetEntry(), GOSSIP_EVENT_ON_SELECT, return false);
+    ENTRY_BEGIN(GameObjectGossipBindings, pGameObject->GetEntry(), GOSSIP_EVENT_ON_SELECT, return false);
     pPlayer->PlayerTalkClass->ClearMenus();
     Push(L, pPlayer);
     Push(L, pGameObject);
