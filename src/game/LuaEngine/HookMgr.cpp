@@ -79,7 +79,7 @@ ENDCALL();
 #define ENDCALL() \
     if (_LuaReturnValues != LUA_MULTRET && lua_gettop(L) != _LuaStackTop + _LuaReturnValues) \
     { \
-        ELUNA_LOG_ERROR("[Eluna]: Ending event %u, stack top was %i and was supposed to be %i. Report to devs", _LuaEvent, lua_gettop(L), _LuaStackTop); \
+        ELUNA_LOG_ERROR("[Eluna]: Ending event %u, stack top was %i and was supposed to be %i. Report to devs", _LuaEvent, lua_gettop(L), _LuaStackTop + _LuaReturnValues); \
     } \
     lua_settop(L, _LuaStackTop);
 
@@ -304,6 +304,12 @@ void Eluna::OnShutdownCancel()
 
 void Eluna::OnWorldUpdate(uint32 diff)
 {
+    if (reload)
+    {
+        ReloadEluna();
+        return;
+    }
+
     m_EventMgr->Update(diff);
     EVENT_BEGIN(ServerEventBindings, WORLD_EVENT_ON_UPDATE, return);
     Push(L, diff);
@@ -458,24 +464,27 @@ bool Eluna::OnRemove(Player* pPlayer, Item* item)
 bool Eluna::OnCommand(Player* player, const char* text)
 {
     std::string fullcmd(text);
-    char* creload = strtok((char*)text, " ");
-    char* celuna = strtok(NULL, "");
-    if (creload && celuna)
+    if (player->GetSession()->GetSecurity() >= SEC_ADMINISTRATOR)
     {
-        std::string reload(creload);
-        std::string eluna(celuna);
-        std::transform(reload.begin(), reload.end(), reload.begin(), ::tolower);
-        if (reload == "reload")
+        char* creload = strtok((char*)text, " ");
+        char* celuna = strtok(NULL, "");
+        if (creload && celuna)
         {
-            std::transform(eluna.begin(), eluna.end(), eluna.begin(), ::tolower);
-            if (std::string("eluna").find(eluna) == 0)
+            std::string reload(creload);
+            std::string eluna(celuna);
+            std::transform(reload.begin(), reload.end(), reload.begin(), ::tolower);
+            if (reload == "reload")
             {
-                eWorld->SendServerMessage(SERVER_MSG_STRING, "Reloading Eluna...");
-                ReloadEluna();
-                return false;
+                std::transform(eluna.begin(), eluna.end(), eluna.begin(), ::tolower);
+                if (std::string("eluna").find(eluna) == 0)
+                {
+                    Eluna::reload = true;
+                    return false;
+                }
             }
         }
     }
+
     bool result = true;
     EVENT_BEGIN(PlayerEventBindings, PLAYER_EVENT_ON_COMMAND, return result);
     Push(L, player);
@@ -1373,7 +1382,13 @@ struct ElunaCreatureAI : ScriptedAI
         Eluna::Push(L, me);
         Eluna::Push(L, attacker);
         Eluna::Push(L, damage);
-        ENTRY_EXECUTE(0);
+        ENTRY_EXECUTE(1);
+        FOR_RETS(i)
+        {
+            if (lua_isnoneornil(L, i))
+                continue;
+            damage = Eluna::CHECKVAL<uint32>(L, i, damage);
+        }
         ENDCALL();
     }
 
@@ -1507,7 +1522,13 @@ struct ElunaCreatureAI : ScriptedAI
         ENTRY_BEGIN(CreatureEventBindings, me->GetEntry(), CREATURE_EVENT_ON_CORPSE_REMOVED, return);
         Eluna::Push(L, me);
         Eluna::Push(L, respawnDelay);
-        ENTRY_EXECUTE(0);
+        ENTRY_EXECUTE(1);
+        FOR_RETS(i)
+        {
+            if (lua_isnoneornil(L, i))
+                continue;
+            respawnDelay = Eluna::CHECKVAL<uint32>(L, i, respawnDelay);
+        }
         ENDCALL();
     }
 
