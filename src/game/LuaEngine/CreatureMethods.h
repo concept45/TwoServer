@@ -330,10 +330,12 @@ namespace LuaCreature
         uint32 targetType = Eluna::CHECKVAL<uint32>(L, 2);
         bool playerOnly = Eluna::CHECKVAL<bool>(L, 3, false);
         uint32 position = Eluna::CHECKVAL<uint32>(L, 4, 0);
-        float dist = Eluna::CHECKVAL<float>(L, 5, -1.0f);
+        float dist = Eluna::CHECKVAL<float>(L, 5, 0.0f);
         int32 aura = Eluna::CHECKVAL<int32>(L, 6, 0);
 
-        ThreatList const&  threatlist = creature->getThreatManager().getThreatList();
+        ThreatList const& threatlist = creature->getThreatManager().getThreatList();
+        if (threatlist.empty())
+            return 1;
         if (position >= threatlist.size())
             return 1;
 
@@ -351,9 +353,13 @@ namespace LuaCreature
                 continue;
             if (dist > 0.0f && !creature->IsWithinDist(target, dist))
                 continue;
+            else if (dist < 0.0f && creature->IsWithinDist(target, -dist))
+                continue;
             targetList.push_back(target);
         }
 
+        if (targetList.empty())
+            return 1;
         if (position >= targetList.size())
             return 1;
 
@@ -366,24 +372,31 @@ namespace LuaCreature
         case SELECT_TARGET_TOPAGGRO:
         {
             std::list<Unit*>::const_iterator itr = targetList.begin();
-            std::advance(itr, position);
+            if (position)
+                std::advance(itr, position);
             Eluna::Push(L, *itr);
         }
+        break;
         case SELECT_TARGET_FARTHEST:
         case SELECT_TARGET_BOTTOMAGGRO:
         {
             std::list<Unit*>::reverse_iterator ritr = targetList.rbegin();
-            std::advance(ritr, position);
+            if (position)
+                std::advance(ritr, position);
             Eluna::Push(L, *ritr);
         }
+        break;
         case SELECT_TARGET_RANDOM:
         {
             std::list<Unit*>::const_iterator itr = targetList.begin();
-            std::advance(itr, urand(position, targetList.size() - 1));
+            if (position)
+                std::advance(itr, urand(0, position));
             Eluna::Push(L, *itr);
         }
+        break;
         default:
             luaL_argerror(L, 2, "SelectAggroTarget expected");
+        break;
         }
 
         return 1;
@@ -396,8 +409,9 @@ namespace LuaCreature
         uint32 i = 0;
 
         ThreatList const& threatList = creature->getThreatManager().getThreatList();
-        ThreatList::const_iterator itr;
-        for (itr = threatList.begin(); itr != threatList.end(); ++itr)
+        if (threatList.empty())
+            return 1;
+        for (ThreatList::const_iterator itr = threatList.begin(); itr != threatList.end(); ++itr)
         {
             Unit* target = (*itr)->getTarget();
             if (!target)
@@ -640,6 +654,19 @@ namespace LuaCreature
         Eluna::Push(L, creature->SelectVictim());
 #endif
         return 1;
+    }
+
+    int UpdateEntry(lua_State* L, Creature* creature)
+    {
+        uint32 entry = Eluna::CHECKVAL<uint32>(L, 2);
+        uint32 dataGuidLow = Eluna::CHECKVAL<uint32>(L, 3, 0);
+
+#ifdef MANGOS
+        creature->UpdateEntry(entry, ALLIANCE, dataGuidLow ? eObjectMgr->GetCreatureData(dataGuidLow) : NULL);
+#else
+        creature->UpdateEntry(entry, dataGuidLow ? eObjectMgr->GetCreatureData(dataGuidLow) : NULL);
+#endif
+        return 0;
     }
 
     /*int ResetLootMode(lua_State* L, Creature* creature) // TODO: Implement LootMode features
