@@ -30,6 +30,7 @@ ENDCALL();
     if (!BINDMAP->HasEvents(EVENT)) \
         RET; \
     lua_State* L = sEluna->L; \
+    const char* _LuaBindType = sEluna->BINDMAP->groupName; \
     uint32 _LuaEvent = EVENT; \
     int _LuaStackTop = lua_gettop(L); \
     for (size_t i = 0; i < sEluna->BINDMAP->Bindings[_LuaEvent].size(); ++i) \
@@ -44,7 +45,7 @@ ENDCALL();
     int _LuaParams = lua_gettop(L) - _LuaFuncTop; \
     if (_LuaParams < 1) \
     { \
-        ELUNA_LOG_ERROR("[Eluna]: Executing event %u, params was %i. Report to devs", _LuaEvent, _LuaParams); \
+        ELUNA_LOG_ERROR("[Eluna]: Executing event %u for %s, params was %i. Report to devs", _LuaEvent, _LuaBindType, _LuaParams); \
     } \
     for (int j = _LuaFuncTop-_LuaStackTop; j > 0; --j) \
     { \
@@ -63,9 +64,11 @@ ENDCALL();
     if (!_Luabind) \
         RET; \
     lua_State* L = sEluna->L; \
+    const char* _LuaBindType = sEluna->BINDMAP->groupName; \
     uint32 _LuaEvent = EVENT; \
     int _LuaStackTop = lua_gettop(L); \
     lua_rawgeti(L, LUA_REGISTRYINDEX, _Luabind); \
+    int _LuaFuncTop = lua_gettop(L); \
     Eluna::Push(L, _LuaEvent);
 
 #define ENTRY_EXECUTE(RETVALS) \
@@ -77,9 +80,13 @@ ENDCALL();
     for (int IT = _LuaStackTop + 1; IT <= lua_gettop(L); ++IT)
 
 #define ENDCALL() \
-    if (_LuaReturnValues != LUA_MULTRET && lua_gettop(L) != _LuaStackTop + _LuaReturnValues) \
+    if (lua_gettop(L) < _LuaStackTop) \
     { \
-        ELUNA_LOG_ERROR("[Eluna]: Ending event %u, stack top was %i and was supposed to be %i. Report to devs", _LuaEvent, lua_gettop(L), _LuaStackTop + _LuaReturnValues); \
+        ELUNA_LOG_ERROR("[Eluna]: Ending event %u for %s, stack top was %i and was supposed to be >= %i. Report to devs", _LuaEvent, _LuaBindType, lua_gettop(L), _LuaStackTop); \
+    } \
+    if (_LuaReturnValues != LUA_MULTRET && lua_gettop(L) > _LuaStackTop + (_LuaFuncTop-_LuaStackTop)*_LuaReturnValues) \
+    { \
+        ELUNA_LOG_ERROR("[Eluna]: Ending event %u for %s, stack top was %i and was supposed to be between %i and %i. Report to devs", _LuaEvent, _LuaBindType, lua_gettop(L), _LuaStackTop, _LuaStackTop + _LuaReturnValues); \
     } \
     lua_settop(L, _LuaStackTop);
 
@@ -150,7 +157,7 @@ bool Eluna::OnPacketSend(WorldSession* session, WorldPacket& packet)
     Player* player = NULL;
     if (session)
         player = session->GetPlayer();
-    OnPacketSendOne(player, packet, result);
+    OnPacketSendAny(player, packet, result);
     OnPacketSendOne(player, packet, result);
     return result;
 }
@@ -389,11 +396,9 @@ bool Eluna::OnQuestAccept(Player* pPlayer, Item* pItem, Quest const* pQuest)
 
 bool Eluna::OnUse(Player* pPlayer, Item* pItem, SpellCastTargets const& targets)
 {
-    OnItemUse(pPlayer, pItem, targets);
-    OnItemGossip(pPlayer, pItem, targets);
+    return OnItemGossip(pPlayer, pItem, targets) || OnItemUse(pPlayer, pItem, targets);
     // pPlayer->SendEquipError((InventoryResult)83, pItem, NULL);
     // return true;
-    return false;
 }
 bool Eluna::OnItemUse(Player* pPlayer, Item* pItem, SpellCastTargets const& targets)
 {
@@ -463,8 +468,9 @@ bool Eluna::OnRemove(Player* pPlayer, Item* item)
 // Player
 bool Eluna::OnCommand(Player* player, const char* text)
 {
+    // If from console, player is NULL
     std::string fullcmd(text);
-    if (player->GetSession()->GetSecurity() >= SEC_ADMINISTRATOR)
+    if (!player || player->GetSession()->GetSecurity() >= SEC_ADMINISTRATOR)
     {
         char* creload = strtok((char*)text, " ");
         char* celuna = strtok(NULL, "");
