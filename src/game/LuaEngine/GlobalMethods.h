@@ -419,7 +419,7 @@ namespace LuaGlobalFunctions
         return 0;
     }
 
-    int ReloadEluna(lua_State* L)
+    int ReloadEluna(lua_State* /*L*/)
     {
         Eluna::reload = true;
         return 0;
@@ -957,8 +957,13 @@ namespace LuaGlobalFunctions
         switch (banMode)
         {
         case BAN_ACCOUNT:
+#ifdef CATA
+            if (!Utf8ToUpperOnlyLatin(nameOrIP))
+                return 0;
+#else
             if (!AccountMgr::normalizeString(nameOrIP))
                 return 0;
+#endif
             break;
         case BAN_CHARACTER:
             if (!normalizePlayerName(nameOrIP))
@@ -988,7 +993,7 @@ namespace LuaGlobalFunctions
         return 0;
     }
 
-    int SaveAllPlayers(lua_State* L)
+    int SaveAllPlayers(lua_State* /*L*/)
     {
         eObjectAccessor->SaveAllPlayers();
         return 0;
@@ -1229,7 +1234,7 @@ namespace LuaGlobalFunctions
         return 0;
     }
 
-    int RemoveOldCorpses(lua_State* L)
+    int RemoveOldCorpses(lua_State* /*L*/)
     {
         eObjectAccessor->RemoveOldCorpses();
         return 0;
