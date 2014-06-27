@@ -853,8 +853,8 @@ namespace LuaUnit
     /*
     int GetVehicle(lua_State* L, Unit* unit)
     {
-        Eluna::Push(L, unit->GetVehicle());
-        return 1;
+    Eluna::Push(L, unit->GetVehicle());
+    return 1;
     }
     */
 
@@ -1478,7 +1478,10 @@ namespace LuaUnit
         case 3:
             spellType = CURRENT_AUTOREPEAT_SPELL;
             break;
+        default:
+            return luaL_argerror(L, 2, "valid CurrentSpellTypes expected");
         }
+
         unit->InterruptSpell((CurrentSpellTypes)spellType, delayed);
         return 0;
     }
@@ -1565,7 +1568,7 @@ namespace LuaUnit
         uint32 repeats = Eluna::CHECKVAL<uint32>(L, 4);
 
         lua_pushvalue(L, 2);
-        int functionRef = lua_ref(L, true);
+        int functionRef = luaL_ref(L, LUA_REGISTRYINDEX);
         functionRef = sEluna->m_EventMgr->AddEvent(&unit->m_Events, functionRef, delay, repeats, unit);
         if (functionRef)
             Eluna::Push(L, functionRef);
