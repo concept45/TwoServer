@@ -29,7 +29,7 @@ namespace LuaSpell
         return 1;
     }
 
-    int GetId(lua_State* L, Spell* spell)
+    int GetEntry(lua_State* L, Spell* spell)
     {
         Eluna::Push(L, spell->m_spellInfo->Id);
         return 1;
@@ -43,7 +43,7 @@ namespace LuaSpell
 
     int GetDuration(lua_State* L, Spell* spell)
     {
-#ifdef MANGOS
+#ifndef TRINITY
         Eluna::Push(L, GetSpellDuration(spell->m_spellInfo));
 #else
         Eluna::Push(L, spell->GetSpellInfo()->GetDuration());
@@ -53,7 +53,7 @@ namespace LuaSpell
 
     int GetTargetDest(lua_State* L, Spell* spell)
     {
-#ifdef MANGOS
+#ifndef TRINITY
         if (!(spell->m_targets.m_targetMask & TARGET_FLAG_DEST_LOCATION))
             return 3;
         float x, y, z;
@@ -72,7 +72,7 @@ namespace LuaSpell
 
     int GetTarget(lua_State* L, Spell* spell)
     {
-#ifdef MANGOS
+#ifndef TRINITY
         if (GameObject* target = spell->m_targets.getGOTarget())
             Eluna::Push(L, target);
         else if (Item* target = spell->m_targets.getItemTarget())
@@ -112,7 +112,7 @@ namespace LuaSpell
         return 0;
     }
 
-    int cancel(lua_State* /*L*/, Spell* spell)
+    int Cancel(lua_State* /*L*/, Spell* spell)
     {
         spell->cancel();
         return 0;

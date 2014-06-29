@@ -102,7 +102,7 @@ namespace LuaItem
     int HasQuest(lua_State* L, Item* item)
     {
         uint32 quest = Eluna::CHECKVAL<uint32>(L, 2);
-#ifdef MANGOS
+#ifndef TRINITY
         Eluna::Push(L, item->HasQuest(quest));
 #else
         Eluna::Push(L, item->hasQuest(quest));
@@ -215,15 +215,9 @@ namespace LuaItem
         return 1;
     }
 
-    int GetGUID(lua_State* L, Item* item)
-    {
-        Eluna::Push(L, item->GetGUIDLow());
-        return 1;
-    }
-
     int GetOwnerGUID(lua_State* L, Item* item)
     {
-#ifdef MANGOS
+#ifndef TRINITY
         Eluna::Push(L, item->GetOwnerGuid());
 #else
         Eluna::Push(L, item->GetOwnerGUID());
@@ -258,12 +252,6 @@ namespace LuaItem
     int GetBagSlot(lua_State* L, Item* item)
     {
         Eluna::Push(L, item->GetBagSlot());
-        return 1;
-    }
-
-    int GetGUIDLow(lua_State* L, Item* item)
-    {
-        Eluna::Push(L, item->GetGUIDLow());
         return 1;
     }
 
@@ -417,7 +405,7 @@ namespace LuaItem
     int SetOwner(lua_State* L, Item* item)
     {
         Player* player = Eluna::CHECKOBJ<Player>(L, 2);
-#ifdef MANGOS
+#ifndef TRINITY
         item->SetOwnerGuid(player->GET_GUID());
 #else
         item->SetOwnerGUID(player->GET_GUID());
@@ -495,7 +483,7 @@ namespace LuaItem
 
     int SaveToDB(lua_State* /*L*/, Item* item)
     {
-#ifdef MANGOS
+#ifndef TRINITY
         item->SaveToDB();
 #else
         SQLTransaction trans = SQLTransaction(NULL);
