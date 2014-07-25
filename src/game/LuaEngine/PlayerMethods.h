@@ -1622,14 +1622,14 @@ namespace LuaPlayer
 
     int ResetTalentsCost(lua_State* L, Player* player)
     {
-#ifdef TRINITY
 #ifdef CATA
         Eluna::Push(L, player->GetNextResetTalentsCost());
 #else
+#ifdef TRINITY
         Eluna::Push(L, player->ResetTalentsCost());
-#endif
 #else
         Eluna::Push(L, player->resetTalentsCost());
+#endif
 #endif
         return 1;
     }
@@ -1638,10 +1638,14 @@ namespace LuaPlayer
     {
         bool no_cost = Eluna::CHECKVAL<bool>(L, 2, true);
 
+#ifdef CATA
+        player->ResetTalents(no_cost);
+#else
 #ifdef TRINITY
         player->ResetTalents(no_cost);
 #else
         player->resetTalents(no_cost);
+#endif
 #endif
 #if (!defined(TBC) && !defined(CLASSIC))
         player->SendTalentsInfoData(false);
@@ -2101,6 +2105,7 @@ namespace LuaPlayer
     int LearnSpell(lua_State* L, Player* player)
     {
         uint32 id = Eluna::CHECKVAL<uint32>(L, 2);
+
 #ifdef TRINITY
         player->LearnSpell(id, false);
 #else
