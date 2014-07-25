@@ -251,8 +251,8 @@ ElunaRegister<Unit> UnitMethods[] =
     { "SetPowerType", &LuaUnit::SetPowerType },               // :SetPowerType(type)
     { "SetDisplayId", &LuaUnit::SetDisplayId },               // :SetDisplayId(id)
     { "SetNativeDisplayId", &LuaUnit::SetNativeDisplayId },   // :SetNativeDisplayId(id)
-    { "SetFacing", &LuaUnit::SetFacing },                     // :SetFacing(o) - Sets the Unit facing to arg
-    { "SetFacingToObject", &LuaUnit::SetFacingToObject },     // :SetFacingToObject(worldObject) - Sets the Unit facing towards the WorldObject
+    { "SetFacing", &LuaUnit::SetFacing },                     // :SetFacing(o) - Sets the Unit facing / orientation to arg
+    { "SetFacingToObject", &LuaUnit::SetFacingToObject },     // :SetFacingToObject(worldObject) - Sets the Unit facing / orientation towards the WorldObject
 #if (!defined(TBC) && !defined(CLASSIC))
     { "SetPhaseMask", &LuaUnit::SetPhaseMask },               // :SetPhaseMask(Phase[, update]) - Sets the phase of the unit
 #endif
@@ -344,8 +344,8 @@ ElunaRegister<Unit> UnitMethods[] =
     { "CastSpell", &LuaUnit::CastSpell },                             // :CastSpell(target, spellID[, triggered]) - Casts spell on target (player/npc/creature), if triggered is true then instant cast
     { "CastCustomSpell", &LuaUnit::CastCustomSpell },                 // :CastCustomSpell(&Unit target, uint32 spell, bool triggered = false, int32 bp0 = nil, int32 bp1 = nil, int32 bp2 = nil, &Item castItem = nil, uint64 originalCaster = 0) - Casts spell on target (player/npc/creature), if triggered is true then instant cast. pb0, 1 and 2 are modifiers for the base points of the spell.
     { "CastSpellAoF", &LuaUnit::CastSpellAoF },                       // :CastSpellAoF(x, y, z, spellID[, triggered]) - Casts the spell on coordinates, if triggered is false has mana cost and cast time
-    { "PlayDirectSound", &LuaUnit::PlayDirectSound },                 // :PlayDirectSound(soundId, player) - Unit plays soundID to player, or everyone around if no player
-    { "PlayDistanceSound", &LuaUnit::PlayDistanceSound },             // :PlayDistanceSound(soundId, player) - Unit plays soundID to player, or everyone around if no player. The sound fades the further you are
+    { "PlayDirectSound", &LuaUnit::PlayDirectSound },                 // :PlayDirectSound(soundId[, player]) - Unit plays soundID to player, or everyone around if no player
+    { "PlayDistanceSound", &LuaUnit::PlayDistanceSound },             // :PlayDistanceSound(soundId[, player]) - Unit plays soundID to player, or everyone around if no player. The sound fades the further you are
     { "Kill", &LuaUnit::Kill },                                       // :Kill(target, durabilityLoss) - Unit kills the target. Durabilityloss is true by default
     { "StopSpellCast", &LuaUnit::StopSpellCast },                     // :StopSpellCast([spellId]) - Stops the unit from casting a spell. If a spellId is defined, it will stop that unit from casting that spell
     { "InterruptSpell", &LuaUnit::InterruptSpell },                   // :InterruptSpell(spellType[, delayed]) - Interrupts the unit's spell by the spellType. If delayed is true it will skip if the spell is delayed.
@@ -763,7 +763,7 @@ ElunaRegister<Creature> CreatureMethods[] =
     { "IsTappedBy", &LuaCreature::IsTappedBy },                                                   // :IsTappedBy(player)
     { "HasLootRecipient", &LuaCreature::HasLootRecipient },                                       // :HasLootRecipient() - Returns true if the creature has a loot recipient
     { "CanAssistTo", &LuaCreature::CanAssistTo },                                                 // :CanAssistTo(unit, enemy[, checkfaction]) - Returns true if the creature can assist unit with enemy
-    { "IsTargetAcceptable", &LuaCreature::IsTargetAcceptable },                                   // :IsTargetAcceptable(unit) - Returns true if the creature can target unit
+    { "IsTargetableForAttack", &LuaCreature::IsTargetableForAttack },                             // :IsTargetableForAttack([inversAlive]) - Returns true if the creature can be attacked
     { "HasInvolvedQuest", &LuaCreature::HasInvolvedQuest },                                       // :HasInvolvedQuest(questId) - Returns true if the creature can finish the quest for players
     { "IsRegeneratingHealth", &LuaCreature::IsRegeneratingHealth },                               // :IsRegeneratingHealth() - Returns true if the creature is regenerating health
     { "IsReputationGainDisabled", &LuaCreature::IsReputationGainDisabled },                       // :IsReputationGainDisabled() - Returns true if the creature has reputation gain disabled
